@@ -1,4 +1,5 @@
 #include "linux_pad.h"
+#include "source_visibility.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -31,8 +32,8 @@ namespace {
 
 class Descriptor {
 public:
-    explicit Descriptor(int value) : value_(value) {
-        if (value_ < 0) throw std::runtime_error("Could not open test input device");
+    explicit Descriptor(int value, const char* operation = "Open test input device") : value_(value) {
+        if (value_ < 0) throw std::runtime_error(std::string(operation) + ": " + std::strerror(errno));
     }
     ~Descriptor() { reset(); }
     Descriptor(const Descriptor&) = delete;
@@ -62,7 +63,8 @@ void checkedIoctl(int fd, unsigned long request, unsigned long value) {
 
 struct FixturePad {
     Descriptor fd{open("/dev/uinput", O_WRONLY | O_CLOEXEC)};
-    const std::string name = "Thumbrest device test " + std::to_string(getpid());
+    inline static unsigned sequence = 0;
+    const std::string name = "Thumbrest device test " + std::to_string(getpid()) + "-" + std::to_string(++sequence);
     unsigned rightX;
     unsigned rightY;
     bool triggerAxes;
@@ -71,7 +73,7 @@ struct FixturePad {
         : rightX(rx), rightY(ry), triggerAxes(triggers) {
         checkedIoctl(fd.get(), UI_SET_EVBIT, EV_KEY);
         for (unsigned key : {BTN_SOUTH, BTN_EAST, BTN_NORTH, BTN_WEST, BTN_TL, BTN_TR,
-                             BTN_SELECT, BTN_START, BTN_THUMBL, BTN_THUMBR}) {
+                             BTN_SELECT, BTN_START, BTN_THUMBL, BTN_THUMBR, BTN_C}) {
             checkedIoctl(fd.get(), UI_SET_KEYBIT, key);
         }
         for (unsigned code : std::array<unsigned, 8>{ABS_X, ABS_Y, rightX, rightY, ABS_GAS, ABS_BRAKE, ABS_HAT0X, ABS_HAT0Y}) {
@@ -91,7 +93,10 @@ struct FixturePad {
         }
         uinput_setup setup{};
         std::strncpy(setup.name, name.c_str(), sizeof(setup.name) - 1);
-        setup.id.bustype = BUS_VIRTUAL;
+        // AYN's firmware automatically captures unfamiliar pads and recreates
+        // its own output with their names. Its own vendor/product pair is
+        // excluded from that loop (rsinput_assert in Thor V1.0.0.377).
+        setup.id = {BUS_USB, 0x2020, 0x0111, 0};
         checkedIoctl(fd.get(), UI_DEV_SETUP, reinterpret_cast<unsigned long>(&setup));
         checkedIoctl(fd.get(), UI_DEV_CREATE, 0);
     }
@@ -166,28 +171,34 @@ void lifecycleAndModes(unsigned rightX, unsigned rightY, bool triggers = false) 
     const auto selected = discover(source.name);
     const auto baseline = virtualNodes();
     Descriptor competing(open(("/dev/input/event" + std::to_string(selected.node)).c_str(),
-                              O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+                              O_RDONLY | O_NONBLOCK | O_CLOEXEC), "Open competing physical reader");
     auto session = std::make_unique<Session>(selected.node, selected.identity, 20);
-    session->setVisible(true);
     const auto outputPath = newVirtual(baseline);
-    Descriptor output(open(outputPath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+    require(session->snapshot().status == Status::Active, "The live session ended before its output was opened: " + std::to_string(static_cast<int>(session->snapshot().status)));
+    Descriptor output(open(outputPath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC), "Open live virtual output");
+    input_id outputId{};
+    require(ioctl(output.get(), EVIOCGID, &outputId) == 0 && outputId.bustype == BUS_USB &&
+            outputId.vendor == 0x2020 && outputId.product == 0x0111 && outputId.version == 0,
+            "The virtual pad did not preserve the source vendor/product mapping identity");
     require(ioctl(competing.get(), EVIOCGRAB, 1) < 0 && errno == EBUSY,
             "The controller session did not hold the production input grab");
 
     source.event(EV_KEY, BTN_SOUTH, 1);
-    waitFor([&] { return session->snapshot().held == bit(A); }, "Physical edit press did not select Held");
+    waitFor([&] { return keyDown(output.get(), BTN_SOUTH); }, "Default mode did not pass through a hardware press");
+    require(!session->snapshot().held && !session->snapshot().turbo, "Hardware input changed a button mode");
     source.event(EV_KEY, BTN_SOUTH, 0);
     waitFor([&] { return session->snapshot().physical == 0; }, "Physical release was not observed");
-    require(!keyDown(output.get(), BTN_SOUTH), "Edit mode leaked a game button");
-    session->setEditing(false);
-    waitFor([&] { return keyDown(output.get(), BTN_SOUTH); }, "Held output did not reach evdev");
+    waitFor([&] { return !keyDown(output.get(), BTN_SOUTH); }, "Default mode did not pass through release");
+    session->cycle(A);
+    waitFor([&] { return keyDown(output.get(), BTN_SOUTH); }, "A live tap did not reach evdev as Held");
 
     source.event(EV_KEY, BTN_EAST, 1);
+    source.event(EV_KEY, BTN_C, 1);
     source.event(EV_ABS, ABS_X, 16384);
     source.event(EV_ABS, rightX, triggers ? 16384 : -16384);
     source.event(EV_ABS, rightY, 16384);
     waitFor([&] {
-        return keyDown(output.get(), BTN_EAST) &&
+        return keyDown(output.get(), BTN_EAST) && keyDown(output.get(), BTN_C) &&
                axisValue(output.get(), ABS_X) == 16384 &&
                axisValue(output.get(), rightX) == (triggers ? 16384 : -16384) &&
                axisValue(output.get(), rightY) == 16384;
@@ -198,10 +209,7 @@ void lifecycleAndModes(unsigned rightX, unsigned rightY, bool triggers = false) 
         ? preview.sticks[2] == 0 && preview.sticks[3] == 0
         : preview.sticks[2] < -490 && preview.sticks[3] > 490;
 
-    session->setEditing(true);
-    waitFor([&] { return !keyDown(output.get(), BTN_SOUTH); }, "Editing did not release Held");
     session->cycle(A);
-    session->setEditing(false);
     const auto until = Clock::now() + 350ms;
     unsigned down = 0;
     unsigned up = 0;
@@ -224,6 +232,10 @@ void lifecycleAndModes(unsigned rightX, unsigned rightY, bool triggers = false) 
     std::cout << "Hold, turbo, and passthrough passed for axes " << rightX << "/" << rightY
               << " (" << down << " down, " << up << " up).\n";
 
+    session->cycle(A);
+    waitFor([&] { return !keyDown(output.get(), BTN_SOUTH); }, "The second tap from Held did not restore Default");
+    require(keyDown(output.get(), BTN_EAST) && keyDown(output.get(), BTN_C),
+            "Changing a mode interrupted other live keys");
     source.fd.reset();
     waitFor([&] { return session->snapshot().status == Status::Disconnected; },
             "Source removal did not end the controller session");
@@ -245,12 +257,25 @@ void stopAndIdentity() {
     }
     require(rejected, "A stale controller identity was accepted");
     const auto baseline = virtualNodes();
+    const auto physicalPath = "/dev/input/event" + std::to_string(selected.node);
+    struct stat original{};
+    require(stat(physicalPath.c_str(), &original) == 0, "Read original source permissions");
     auto session = std::make_unique<Session>(selected.node, selected.identity, 15);
     const auto outputPath = newVirtual(baseline);
-    session->setVisible(true);
+    require(access(physicalPath.c_str(), F_OK) < 0 && errno == ENOENT,
+            "The physical controller node remained visible");
     session->cycle(A);
-    session->setEditing(false);
     session.reset();
+    struct stat restored{};
+    require(stat(physicalPath.c_str(), &restored) == 0 && original.st_ino == restored.st_ino &&
+            original.st_mode == restored.st_mode && original.st_uid == restored.st_uid &&
+            original.st_gid == restored.st_gid && original.st_rdev == restored.st_rdev,
+            "Stop did not restore the same physical node and permissions");
+    const auto again = discover(source.name);
+    require(again.stableId == selected.stableId && again.identity == selected.identity,
+            "Controller identity changed across hiding and restoration: " +
+            std::to_string(selected.node) + " " + selected.identity + " " + selected.stableId + " -> " +
+            std::to_string(again.node) + " " + again.identity + " " + again.stableId);
     waitFor([&] { return access(outputPath.c_str(), F_OK) < 0; }, "Stop left the virtual controller alive");
     Descriptor physical(open(("/dev/input/event" + std::to_string(selected.node)).c_str(),
                              O_RDONLY | O_NONBLOCK | O_CLOEXEC));
@@ -273,9 +298,7 @@ void killedWriterCleanup() {
         reader.reset();
         try {
             Session session(selected.node, selected.identity, 15);
-            session.setVisible(true);
             session.cycle(A);
-            session.setEditing(false);
             waitFor([&] { return session.snapshot().output == bit(A); },
                     "The writer did not publish its held button");
             const char ready = 'R';
@@ -306,23 +329,155 @@ void killedWriterCleanup() {
     process.pid = -1;
     waitFor([&] { return access(outputPath.c_str(), F_OK) < 0; },
             "The virtual gamepad survived a killed writer");
-    Descriptor physical(open(("/dev/input/event" + std::to_string(selected.node)).c_str(),
-                             O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+    const auto physicalPath = "/dev/input/event" + std::to_string(selected.node);
+    waitFor([&] { return access(physicalPath.c_str(), F_OK) == 0; },
+            "A killed writer did not restore the hidden physical controller node");
+    Descriptor physical(open(physicalPath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
     require(ioctl(physical.get(), EVIOCGRAB, 1) == 0,
             "A killed writer left the physical controller grabbed");
     require(ioctl(physical.get(), EVIOCGRAB, 0) == 0, "Release the cleanup-check input grab");
     std::cout << "Killed-writer cleanup passed while a button was held.\n";
 }
 
+std::string frameworkInputs() {
+    int capture[2];
+    require(pipe2(capture, O_CLOEXEC | O_NONBLOCK) == 0, "Create Android registry capture");
+    Descriptor reader(capture[0]), writer(capture[1]);
+    const auto child = fork();
+    require(child >= 0, "Fork Android input registry inspection");
+    if (!child) {
+        dup2(writer.get(), STDOUT_FILENO);
+        const int flags = fcntl(STDOUT_FILENO, F_GETFL);
+        fcntl(STDOUT_FILENO, F_SETFL, flags & ~O_NONBLOCK);
+        execl("/system/bin/dumpsys", "dumpsys", "input", static_cast<char*>(nullptr));
+        _exit(127);
+    }
+    writer.reset();
+    std::string result;
+    const auto deadline = Clock::now() + 3s;
+    bool complete = false;
+    while (Clock::now() < deadline && result.size() < 2 * 1024 * 1024) {
+        pollfd readable{reader.get(), POLLIN, 0};
+        if (poll(&readable, 1, 50) < 0 && errno != EINTR) break;
+        char buffer[4096];
+        const auto count = read(reader.get(), buffer, sizeof(buffer));
+        if (count > 0) result.append(buffer, static_cast<size_t>(count));
+        else if (count == 0) { complete = true; break; }
+        else if (errno != EAGAIN && errno != EINTR) break;
+    }
+    if (!complete) kill(child, SIGKILL);
+    int status = 0;
+    while (waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+    require(complete && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+            "Android registry inspection failed or exceeded its bound");
+    // Exclude dispatch history, which may legitimately mention removed devices.
+    const auto end = result.find("Input Dispatcher State:");
+    return result.substr(0, end);
+}
+
+void frameworkHidingAndRecovery() {
+    FixturePad source(ABS_RX, ABS_RY);
+    const auto selected = discover(source.name);
+    waitFor([&] { return frameworkInputs().find(source.name) != std::string::npos; },
+            "Android did not enumerate the fixture before capture");
+    {
+        Session session(selected.node, selected.identity, 15);
+        waitFor([&] {
+            const auto registry = frameworkInputs();
+            return registry.find(source.name) == std::string::npos &&
+                   registry.find("Thumbrest Virtual Gamepad") != std::string::npos;
+        }, "Android still listed the captured original, or failed to list its replacement");
+    }
+    waitFor([&] {
+        const auto registry = frameworkInputs();
+        return registry.find(source.name) != std::string::npos &&
+               registry.find("Thumbrest Virtual Gamepad") == std::string::npos;
+    }, "Android did not restore the physical listing after Stop");
+    std::cout << "Android EventHub/InputReader hiding and restoration passed.\n";
+}
+
+void restorationDoesNotReplaceAnotherNode() {
+    FixturePad fixture(ABS_RX, ABS_RY);
+    const auto selected = discover(fixture.name);
+    const auto path = "/dev/input/event" + std::to_string(selected.node);
+    Descriptor source(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+    checkedIoctl(source.get(), EVIOCGRAB, 1);
+    SourceVisibility visibility(source.get(), selected.node);
+    Descriptor sentinel(open(path.c_str(), O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC | O_NOFOLLOW, 0600));
+    struct stat expected{}, after{};
+    require(fstat(sentinel.get(), &expected) == 0, "Read replacement-node identity");
+    const bool refused = !visibility.restore();
+    const bool preserved = lstat(path.c_str(), &after) == 0 && expected.st_ino == after.st_ino &&
+        S_ISREG(after.st_mode);
+    if (preserved) require(unlink(path.c_str()) == 0, "Remove the test-owned replacement node");
+    const bool recovered = visibility.restore();
+    require(preserved, "Recovery overwrote an unrelated replacement node");
+    require(recovered, "Recovery did not resume after the conflict was removed");
+    require(refused, "Recovery accepted a conflicting replacement node");
+    Descriptor restored(open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC));
+    require(ioctl(restored.get(), EVIOCGRAB, 1) == 0, "Conflict recovery left a grab behind");
+    checkedIoctl(restored.get(), EVIOCGRAB, 0);
+    std::cout << "Conflicting-node preservation and recovery retry passed.\n";
+}
+
+void physicalControllerProbe() {
+    std::vector<Controller> candidates;
+    for (const auto& controller : scanControllers()) {
+        if (controller.name == "Odin Controller" && controller.stableId == "3:8224:273:0::") {
+            candidates.push_back(controller);
+        }
+    }
+    require(candidates.size() == 1, "The Thor probe requires exactly one freshly identified Odin Controller");
+    const auto selected = candidates.front();
+    const auto path = "/dev/input/event" + std::to_string(selected.node);
+    struct stat original{}, restored{};
+    require(stat(path.c_str(), &original) == 0, "Read the built-in controller inode");
+    {
+        Session session(selected.node, selected.identity, 15);
+        waitFor([&] {
+            const auto registry = frameworkInputs();
+            return registry.find("Odin Controller") == std::string::npos &&
+                   registry.find("Thumbrest Virtual Gamepad") != std::string::npos;
+        }, "Android did not replace the built-in controller listing");
+        const auto until = Clock::now() + 3s;
+        while (Clock::now() < until) {
+            const auto snapshot = session.snapshot();
+            require(snapshot.status == Status::Active && !snapshot.held && !snapshot.turbo,
+                    "The built-in controller did not remain live in Default mode");
+            std::this_thread::sleep_for(20ms);
+        }
+        require(session.stop() == Status::Idle, "Stopping the built-in controller did not restore its node");
+    }
+    require(stat(path.c_str(), &restored) == 0 && original.st_ino == restored.st_ino &&
+            original.st_mode == restored.st_mode && original.st_uid == restored.st_uid &&
+            original.st_gid == restored.st_gid, "The built-in controller node or permissions changed");
+    waitFor([&] {
+        const auto registry = frameworkInputs();
+        return registry.find("Odin Controller") != std::string::npos &&
+               registry.find("Thumbrest Virtual Gamepad") == std::string::npos;
+    }, "Android did not restore the original built-in listing");
+    std::cout << "Thor built-in pad: live Default, Android hiding, and exact node restoration passed.\n";
+}
+
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    std::cout << std::unitbuf;
     try {
+        if (argc == 2 && std::string(argv[1]) == "--physical-probe") {
+            physicalControllerProbe();
+            return 0;
+        }
+        require(argc == 1, "Usage: device-session-test [--physical-probe]");
+        std::cout << "Checking Android enumeration.\n";
+        frameworkHidingAndRecovery();
         stopAndIdentity();
+        std::cout << "Checking live RX/RY modes.\n";
         lifecycleAndModes(ABS_RX, ABS_RY);
         lifecycleAndModes(ABS_Z, ABS_RZ);
         lifecycleAndModes(ABS_Z, ABS_RZ, true);
         killedWriterCleanup();
+        restorationDoesNotReplaceAnotherNode();
     } catch (const std::exception& error) {
         std::cerr << "Device check failed: " << error.what() << '\n';
         return 1;

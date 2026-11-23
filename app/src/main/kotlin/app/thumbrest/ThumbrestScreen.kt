@@ -24,7 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,7 +71,6 @@ internal fun ThumbrestScreen(
     state: SessionState,
     onConnect: () -> Unit,
     onSelect: (PadDevice) -> Unit,
-    onEdit: (Boolean) -> Unit,
     onCycle: (PadButton) -> Unit,
     onRate: (Int) -> Unit,
     onClear: () -> Unit,
@@ -114,8 +112,8 @@ internal fun ThumbrestScreen(
                 when {
                     state.stopping -> Pending("Releasing controller…")
                     state.starting -> Pending("Opening controller…")
-                    pad != null && snapshot != null -> SessionEditor(
-                        pad, snapshot, state.rate, onEdit, onCycle, onRate, onClear,
+                    pad != null && snapshot != null -> LiveController(
+                        pad, snapshot, state.rate, onCycle, onRate, onClear,
                     )
                     state.connecting -> Pending("Waiting for Magisk…")
                     state.connected -> DevicePicker(state.devices, state.scanning, state.scanError != null, onSelect)
@@ -124,7 +122,7 @@ internal fun ThumbrestScreen(
                         Text("Hold buttons down or fire repeatedly without keeping your thumb on the controller.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
-                            Text("Connect controllers")
+                            Text("Resume")
                         }
                         Text("Requires Magisk root", style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -184,11 +182,10 @@ private fun DevicePicker(
 }
 
 @Composable
-private fun SessionEditor(
+private fun LiveController(
     device: PadDevice,
     snapshot: PadSnapshot,
     rate: Int,
-    onEdit: (Boolean) -> Unit,
     onCycle: (PadButton) -> Unit,
     onRate: (Int) -> Unit,
     onClear: () -> Unit,
@@ -198,43 +195,29 @@ private fun SessionEditor(
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(device.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(if (snapshot.editing) "Editing" else "Live",
-                color = if (snapshot.editing) MaterialTheme.colorScheme.onSurfaceVariant else Mint,
+            Text("Ready", color = Mint,
                 style = MaterialTheme.typography.labelLarge)
         }
         ControllerBoard(device, snapshot, onCycle)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            ModeLegend("Neutral", Color(0xFF859C90))
+            ModeLegend("Default", Color(0xFF859C90))
             ModeLegend("Held", Mint)
             ModeLegend("Turbo", Lilac)
         }
-        if (snapshot.editing) {
-            Text("Press a controller button or tap it above to change its mode.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            Text("Open your emulator and select Thumbrest Virtual Gamepad.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Tap a button to cycle Default → Held → Turbo → Default. Changes take effect immediately.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton(onClick = onClear, enabled = snapshot.held != 0 || snapshot.turbo != 0) {
+            Text("All default")
         }
     }
 
-    if (snapshot.editing) {
-        CardPanel {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Turbo rate", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                Text("$rate presses/sec", color = Lilac, style = MaterialTheme.typography.labelLarge)
-            }
-            Slider(value = rate.toFloat(), onValueChange = { onRate(it.roundToInt()) },
-                valueRange = 1f..60f,
-                modifier = Modifier.fillMaxWidth())
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onClear) { Text("Reset") }
-                Button(onClick = { onEdit(false) }, modifier = Modifier.weight(1f)) { Text("Apply modes") }
-            }
+    CardPanel {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Turbo rate", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            Text("$rate presses/sec", color = Lilac, style = MaterialTheme.typography.labelLarge)
         }
-    } else {
-        OutlinedButton(onClick = { onEdit(true) }, modifier = Modifier.fillMaxWidth()) {
-            Text("Edit modes")
-        }
+        Slider(value = rate.toFloat(), onValueChange = { onRate(it.roundToInt()) },
+            valueRange = 1f..60f, modifier = Modifier.fillMaxWidth())
     }
 }
 

@@ -8,21 +8,18 @@ import android.os.IBinder
 import android.os.Message
 import android.os.Messenger
 import android.os.RemoteException
+import android.util.Log
 import com.topjohnwu.superuser.ipc.RootService
 
 internal object NativePad {
-    init {
-        System.loadLibrary("thumbrest")
-    }
+    init { System.loadLibrary("thumbrest") }
 
     external fun scan(): Array<String>
     external fun start(node: Int, identity: String, rate: Int)
     external fun stop()
-    external fun edit(enabled: Boolean)
     external fun rate(rate: Int)
     external fun cycle(button: Int)
     external fun clear()
-    external fun visible(visible: Boolean)
     external fun snapshot(): IntArray
 }
 
@@ -37,6 +34,7 @@ class RootPadService : RootService() {
             if (request.sendingUid == ownerUid) process(request)
             true
         }
+        Log.i(TAG, "Root controller service created")
     }
 
     override fun onBind(intent: Intent): IBinder = Messenger(handler).binder
@@ -46,6 +44,9 @@ class RootPadService : RootService() {
         handler.post {
             try {
                 NativePad.stop()
+                Log.i(TAG, "Controller released on root service shutdown")
+            } catch (error: Exception) {
+                Log.e(TAG, "Controller recovery failed during root service shutdown", error)
             } catch (_: LinkageError) {
                 // A native library that could not be loaded owns no descriptors.
             }
@@ -62,29 +63,34 @@ class RootPadService : RootService() {
                     val identity = requireNotNull(request.data.getString("identity"))
                     require(request.arg1 >= 0 && request.arg2 in 1..60)
                     NativePad.start(request.arg1, identity, request.arg2)
-                    try {
-                        NativePad.visible(request.data.getBoolean("visible"))
-                        result.putIntArray("snapshot", NativePad.snapshot())
-                    } catch (error: Throwable) {
-                        NativePad.stop()
-                        throw error
-                    }
+                    result.putIntArray("snapshot", NativePad.snapshot())
+                    Log.i(TAG, "Controller ready: event${request.arg1}")
                 }
                 PadProtocol.SNAPSHOT -> result.putIntArray("snapshot", NativePad.snapshot())
-                PadProtocol.EDIT -> {
-                    NativePad.edit(request.arg1 != 0)
+                PadProtocol.CYCLE -> {
+                    NativePad.cycle(request.arg1)
                     result.putIntArray("snapshot", NativePad.snapshot())
                 }
-                PadProtocol.CYCLE -> NativePad.cycle(request.arg1)
-                PadProtocol.RATE -> NativePad.rate(request.arg1)
-                PadProtocol.CLEAR -> NativePad.clear()
-                PadProtocol.STOP -> NativePad.stop()
-                PadProtocol.VISIBILITY -> NativePad.visible(request.arg1 != 0)
+                PadProtocol.RATE -> {
+                    require(request.arg1 in 1..60)
+                    NativePad.rate(request.arg1)
+                    result.putIntArray("snapshot", NativePad.snapshot())
+                }
+                PadProtocol.CLEAR -> {
+                    NativePad.clear()
+                    result.putIntArray("snapshot", NativePad.snapshot())
+                }
+                PadProtocol.STOP, PadProtocol.RELEASE -> {
+                    NativePad.stop()
+                    Log.i(TAG, "Controller released")
+                }
                 else -> return
             }
         } catch (error: Exception) {
+            Log.e(TAG, "Controller command ${request.what} failed", error)
             result.putString("error", error.message ?: "Controller operation failed.")
-        } catch (_: LinkageError) {
+        } catch (error: LinkageError) {
+            Log.e(TAG, "Native controller library failed", error)
             result.putString("error", "The native controller engine could not start.")
         }
 
@@ -95,4 +101,6 @@ class RootPadService : RootService() {
             runCatching { NativePad.stop() }
         }
     }
+
+    companion object { private const val TAG = "ThumbrestRoot" }
 }

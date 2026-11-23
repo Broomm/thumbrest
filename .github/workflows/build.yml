@@ -43,6 +43,10 @@ jobs:
       - name: Compile Android device regressions
         run: devbox run -- bash tool/check-device.sh --build-only
 
+      - name: Check automatic controller selection
+        if: ${{ !cancelled() }}
+        run: devbox run -- ./gradlew --no-daemon :app:checkControllerChoice
+
       - name: Android lint
         if: ${{ !cancelled() }}
         run: devbox run -- ./gradlew --no-daemon :app:lintDebug

@@ -12,6 +12,7 @@ namespace thumbrest {
 struct Controller {
     int node;
     std::string identity;
+    std::string stableId;
     std::string name;
     Buttons supported;
 };
@@ -19,11 +20,10 @@ struct Controller {
 std::vector<Controller> scanControllers();
 bool isVirtualController(const std::string& name);
 
-enum class Status { Idle, Active, Disconnected, ReadFailed, WriteFailed };
+enum class Status { Idle, Active, Disconnected, ReadFailed, WriteFailed, GuardFailed, RestoreFailed };
 
 struct Snapshot {
     Status status = Status::Idle;
-    bool editing = false;
     Buttons physical = 0;
     Buttons output = 0;
     Buttons held = 0;
@@ -36,8 +36,7 @@ public:
     Session(int node, const std::string& identity, int rate);
     ~Session();
 
-    void setEditing(bool value);
-    void setVisible(bool value);
+    Status stop();
     void setRate(int rate);
     void cycle(Button button);
     void clear();

@@ -73,7 +73,7 @@ internal fun ControllerBoard(
     onCycle: ((PadButton) -> Unit)? = null,
 ) {
     val handler = rememberUpdatedState(onCycle)
-    val editing = snapshot?.editing == true
+    val activeSession = snapshot?.status == 1
     val accessibleDescription = if (device == null || snapshot == null) {
         "Gamepad diagram"
     } else {
@@ -86,8 +86,8 @@ internal fun ControllerBoard(
     Canvas(
         Modifier.fillMaxWidth().aspectRatio(BoardWidth / BoardHeight)
             .semantics { contentDescription = accessibleDescription }
-            .pointerInput(device?.supported, editing) {
-                if (editing && device != null) {
+            .pointerInput(device?.supported, activeSession) {
+                if (activeSession && device != null) {
                     detectTapGestures { tap ->
                         val point = Offset(tap.x * BoardWidth / size.width, tap.y * BoardHeight / size.height)
                         val hit = positions.filter { device.supports(it.button) }
@@ -110,17 +110,17 @@ internal fun ControllerBoard(
             for (position in positions) {
                 val button = position.button
                 val supported = device?.supports(button) != false
-                val mode = snapshot?.mode(button) ?: ButtonMode.Neutral
-                val active = if (editing) snapshot?.physical else snapshot?.output
+                val mode = snapshot?.mode(button) ?: ButtonMode.Default
+                val active = snapshot?.output
                 val pressed = (active ?: 0) and button.bit != 0
                 val color = when (mode) {
-                    ButtonMode.Neutral -> Idle
+                    ButtonMode.Default -> Idle
                     ButtonMode.Held -> Mint
                     ButtonMode.Turbo -> Lilac
                 }
                 val edge = if (supported) color else Color(0xFF4F645B)
                 val fill = if (pressed && supported) {
-                    if (mode == ButtonMode.Neutral) Label else color
+                    if (mode == ButtonMode.Default) Label else color
                 } else Control
                 val label = if (pressed) Dark else if (supported) Label else Idle
                 when (button) {

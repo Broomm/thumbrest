@@ -19,59 +19,39 @@ class ButtonModes {
 public:
     explicit ButtonModes(Buttons supported) : supported_(supported) {}
 
-    void setEditing(bool editing, Clock::time_point now) {
-        if (editing_ == editing) return;
-        editing_ = editing;
-        if (!editing) {
-            // A button still physically down after editing begins passing through on
-            // its next press. An intentional hold or turbo starts immediately.
-            suppressed_ = physical_;
-            phaseStart_ = now;
-        }
-    }
-
     void setRate(int pressesPerSecond, Clock::time_point now) {
         if (pressesPerSecond < 1 || pressesPerSecond > 60) return;
         halfPeriod_ = std::chrono::nanoseconds(1'000'000'000 / (2 * pressesPerSecond));
         phaseStart_ = now;
     }
 
-    void physicalFrame(Buttons physical, bool complete) {
-        physical &= supported_;
-        if (editing_ && complete) cycle(physical & ~physical_);
-        suppressed_ &= physical;
-        physical_ = physical;
-    }
+    // Hardware input always belongs to the game. Only screen taps select modes.
+    void physicalFrame(Buttons physical) { physical_ = physical & supported_; }
 
-    void cycle(Buttons buttons) {
-        if (!editing_) return;
+    void cycle(Buttons buttons, Clock::time_point now) {
         buttons &= supported_;
-        const auto neutral = buttons & ~(held_ | turbo_);
+        const auto normal = buttons & ~(held_ | turbo_);
         const auto held = buttons & held_;
-        held_ = (held_ & ~buttons) | neutral;
+        held_ = (held_ & ~buttons) | normal;
         turbo_ = (turbo_ & ~buttons) | held;
+        if (held) phaseStart_ = now;
     }
 
     void clear() {
-        if (editing_) {
-            held_ = 0;
-            turbo_ = 0;
-        }
+        held_ = 0;
+        turbo_ = 0;
     }
 
     Buttons output(Clock::time_point now) const {
-        if (editing_) return 0;
         const auto pulses = (now - phaseStart_) / halfPeriod_;
-        return (physical_ & ~(suppressed_ | turbo_)) | held_ |
-            (pulses % 2 == 0 ? turbo_ : 0);
+        return (physical_ & ~turbo_) | held_ | (pulses % 2 == 0 ? turbo_ : 0);
     }
 
     Clock::time_point nextEdge(Clock::time_point now) const {
-        if (editing_ || !turbo_) return Clock::time_point::max();
+        if (!turbo_) return Clock::time_point::max();
         return phaseStart_ + ((now - phaseStart_) / halfPeriod_ + 1) * halfPeriod_;
     }
 
-    bool editing() const { return editing_; }
     Buttons physical() const { return physical_; }
     Buttons held() const { return held_; }
     Buttons turbo() const { return turbo_; }
@@ -79,10 +59,8 @@ public:
 private:
     Buttons supported_;
     Buttons physical_ = 0;
-    Buttons suppressed_ = 0;
     Buttons held_ = 0;
     Buttons turbo_ = 0;
-    bool editing_ = true;
     Clock::time_point phaseStart_{};
     std::chrono::nanoseconds halfPeriod_{33'333'333};
 };

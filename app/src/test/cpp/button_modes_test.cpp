@@ -18,65 +18,67 @@ void check(bool condition, const char* description) {
     }
 }
 
-void physicalPressesSelectModesOnlyDuringEditing() {
+void liveTapsFollowTheRaceWorkflow() {
     ButtonModes modes(bit(A) | bit(B));
-    modes.physicalFrame(bit(A), true);
-    modes.physicalFrame(bit(A), true);
-    check(modes.held() == bit(A), "One physical press must select Held exactly once");
-    check(modes.output(epoch) == 0, "Editing must release game output");
-    modes.physicalFrame(0, true);
-    modes.setEditing(false, epoch);
-    modes.physicalFrame(bit(B), true);
-    check(modes.output(epoch) == (bit(A) | bit(B)), "Held accelerator and ordinary input must coexist");
-    modes.physicalFrame(0, true);
-    check(modes.output(epoch) == bit(A), "Held must survive physical release");
+    modes.physicalFrame(bit(A));
+    check(modes.output(epoch) == bit(A) && !modes.held(), "Default must pass through the first hardware press");
+    modes.physicalFrame(0);
+    check(!modes.output(epoch), "Hardware release must pass through without changing a mode");
 
-    modes.setEditing(true, epoch);
-    modes.physicalFrame(bit(A), true);
-    check(modes.turbo() == bit(A) && !modes.held(), "The second edit press must select Turbo");
-    modes.physicalFrame(0, true);
-    modes.physicalFrame(bit(A), true);
-    check(!modes.turbo() && !modes.held(), "The third edit press must restore Neutral");
+    modes.cycle(bit(A), epoch);
+    check(modes.output(epoch) == bit(A), "One screen tap must start Held immediately");
+    modes.physicalFrame(bit(B));
+    check(modes.output(epoch) == (bit(A) | bit(B)), "Steering and other controls must remain live");
+    modes.physicalFrame(0);
+    check(modes.output(epoch) == bit(A), "Held must survive physical release");
+    modes.cycle(bit(A), epoch + 1ms);
+    check(modes.turbo() == bit(A) && !modes.held(), "A second tap must select Turbo");
+    modes.cycle(bit(A), epoch + 2ms);
+    check(!modes.output(epoch + 2ms) && !modes.turbo(), "Two taps from Held must restore Default immediately");
 }
 
-void turboHasBothEdgesAndIgnoresConstantPhysicalPressure() {
+void turboHasBothEdgesDespitePhysicalPressure() {
     ButtonModes modes(bit(X) | bit(Y));
-    modes.cycle(bit(X));
-    modes.cycle(bit(X));
-    modes.cycle(bit(Y));
     modes.setRate(20, epoch);
-    modes.setEditing(false, epoch);
-    modes.physicalFrame(bit(X), true);
+    modes.cycle(bit(X), epoch);
+    modes.cycle(bit(X), epoch);
+    modes.cycle(bit(Y), epoch);
+    modes.physicalFrame(bit(X));
     check(modes.output(epoch) == (bit(X) | bit(Y)), "Turbo must start down");
     check(modes.nextEdge(epoch) == epoch + 25ms, "Twenty presses/sec must switch every 25 ms");
-    check(modes.output(epoch + 25ms) == bit(Y), "Turbo must release even with X held physically");
+    check(modes.output(epoch + 25ms) == bit(Y), "Turbo must release with X held physically");
     check(modes.output(epoch + 50ms) == (bit(X) | bit(Y)), "Turbo must emit another down edge");
-    modes.setEditing(true, epoch + 51ms);
-    check(!modes.output(epoch + 51ms), "Returning to edit mode must release held and turbo buttons");
-    modes.clear();
-    check(!modes.held() && !modes.turbo(), "Reset must clear both modes");
+    modes.cycle(bit(X), epoch + 75ms);
+    check(modes.output(epoch + 75ms) == (bit(X) | bit(Y)), "Returning to Default must preserve a real press");
+    modes.physicalFrame(0);
+    check(modes.output(epoch + 75ms) == bit(Y), "Default must immediately follow the physical release");
 }
 
-void snapshotAndUnfinishedEditsDoNotGeneratePresses() {
+void resetResyncAndUnsupportedControlsStayPredictable() {
     ButtonModes modes(bit(A));
-    modes.physicalFrame(bit(A), false);
-    modes.physicalFrame(bit(A), true);
-    modes.cycle(bit(B));
-    check(!modes.held() && !modes.turbo(), "Resync and unsupported controls must not select modes");
-    modes.setEditing(false, epoch);
-    check(!modes.output(epoch), "Applying while a neutral button is down must wait for its next press");
-    modes.physicalFrame(0, true);
-    modes.physicalFrame(bit(A), true);
-    check(modes.output(epoch) == bit(A), "The next ordinary press must pass through");
-    modes.physicalFrame(0, true);
-    check(!modes.output(epoch), "An ordinary release must pass through");
+    modes.physicalFrame(bit(A) | bit(B));
+    modes.cycle(bit(B), epoch);
+    check(!modes.held() && !modes.turbo() && modes.output(epoch) == bit(A), "Resync and unsupported input must not select modes");
+    modes.cycle(bit(A), epoch);
+    modes.clear();
+    check(modes.output(epoch) == bit(A), "Reset must preserve current physical input");
+    modes.physicalFrame(0);
+    check(!modes.output(epoch), "Reset must release synthetic holds");
+    check(modes.nextEdge(epoch) == Clock::time_point::max(), "Default must not schedule turbo work");
+    modes.cycle(bit(A), epoch);
+    modes.cycle(bit(A), epoch);
+    modes.setRate(60, epoch);
+    const auto edge = modes.nextEdge(epoch);
+    modes.setRate(0, epoch);
+    modes.setRate(61, epoch);
+    check(modes.nextEdge(epoch) == edge, "Invalid rates must not change the live timing");
 }
 
 } // namespace
 
 int main() {
-    physicalPressesSelectModesOnlyDuringEditing();
-    turboHasBothEdgesAndIgnoresConstantPhysicalPressure();
-    snapshotAndUnfinishedEditsDoNotGeneratePresses();
+    liveTapsFollowTheRaceWorkflow();
+    turboHasBothEdgesDespitePhysicalPressure();
+    resetResyncAndUnsupportedControlsStayPredictable();
     std::cout << "Button mode checks passed.\n";
 }

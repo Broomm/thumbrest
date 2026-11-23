@@ -6,34 +6,51 @@ publishes **Thumbrest Virtual Gamepad** for emulators and games.
 
 ## Try it
 
-1. Use a 64-bit ARM Android 10+ device with Magisk root.
-   Install the APK, open Thumbrest, tap **Connect controllers**, and grant
-   superuser access. Allow notifications if you want **Stop** in the notification.
-2. Choose a controller while its controls are idle. The diagram lights up as you
-   press buttons and move the sticks. While **Editing**, press a physical button
-   or tap it on the diagram to cycle **Neutral → Held → Turbo → Neutral**.
-   **Reset** clears all modes. The virtual pad stays neutral until you apply.
-3. For a racing game, press the accelerator button once in the editor so it shows
-   as **Held**. Tap **Apply modes** and open the emulator. Select **Thumbrest
-   Virtual Gamepad** in its controller settings and bind it to the player slot.
-   The accelerator should stay down while steering still responds normally.
-4. Return to Thumbrest and tap **Edit modes**. Press that same button again to
-   set **Turbo**, choose a rate, and apply. The game should see repeated down
-   and up transitions after your thumb leaves the button. Slow the rate if the
-   game misses presses.
-5. Use **Stop** from Thumbrest or its notification. The virtual controller
-   should disappear and the physical pad should respond directly again. Verify
-   this once each with **Stop**, force-stop, and a physical disconnect, using a
-   disposable game session or your emulator’s controller tester. If the
-   emulator has retained its virtual-pad binding, select the physical controller
-   again in its settings.
+1. Use a 64-bit ARM Android 10+ device with Magisk root. Install the APK and
+   open Thumbrest. Grant superuser access once; allow notifications to keep
+   **Stop** accessible outside the app. Thumbrest connects automatically.
+2. With one compatible controller, the pad becomes **Ready** automatically.
+   With several pads, choose one. Thumbrest remembers its hardware identity and
+   reconnects to it when available. Identical pads without a unique identifier
+   require a choice. Every new session starts with all buttons **Default**.
+3. The virtual pad is already live: **Default** passes the physical button
+   through. Tap a button on the screen to cycle **Default → Held → Turbo →
+   Default** immediately. Physical presses always belong to the game. There
+   is no editing phase or Apply button, and changing modes keeps the same
+   virtual controller connected.
+4. On the Thor, put Thumbrest on the bottom screen and your emulator on top.
+   At the start of a race, tap **A** once to hold acceleration. Tap **A** twice
+   after the race to restore ordinary input. **All default** clears every
+   synthetic hold/turbo while preserving actual physical input. Turbo runs at
+   the selected 1–60 presses/sec; the rate is remembered.
+5. Android sees **Thumbrest Virtual Gamepad** in place of the captured original.
+   If your emulator requires explicit controller binding, select that pad once.
+   Upgrading from the first prototype may require rebinding because the virtual
+   pad now preserves the source vendor/product identity and key layout.
+6. **Stop** in the app or notification removes the virtual pad and restores the
+   physical controller. Automatic connection stays paused until **Resume**.
+   Disconnecting a pad ends its input session; reconnecting the remembered pad
+   starts a fresh Default session automatically.
 
-The preview handles standard digital gamepad buttons and common joystick axes
-from one Linux gamepad event node. Analog-only controls pass through as axes.
-The physical pad may still appear by name while grabbed, so select the virtual
-pad explicitly. Button modes last for the session. This APK uses a session-bound
-Magisk root service and Android's uinput device. It requires a kernel exposing
-uinput and access to the selected physical input node.
+The preview handles digital gamepad buttons and common joystick axes from one
+Linux event node. Additional physical keys pass through; analog-only controls
+remain axes. Rumble forwarding is not implemented. Button modes last for the
+session. Root and a kernel exposing uinput are required. No Magisk module or
+reboot is needed to start a supported session.
+
+The native engine holds the physical input node open, keeps its original inode
+in a private temporary directory under `/dev/.thumbrest-*`, and hides its public
+node so Android removes the duplicate entry. An independent recovery process
+restores the node and releases the grab on Stop or writer death. This preserves
+its permissions and SELinux label. No controller settings, firmware, or global
+SELinux state are changed. See [Android input design and evidence](docs/ANDROID_INPUT.md).
+
+For owner verification, use an emulator controller tester or a disposable race:
+confirm ordinary menus, one-tap Held, two-tap return to Default, steering beside
+Held/Turbo, and continued game focus when touching the lower screen. Verify
+Stop and force-stop return direct physical input. The secondary-display window
+accepts touch without requesting controller key focus; actual Thor/Burnout
+focus and gameplay behavior need this hands-on check.
 
 ## Build with Devbox
 
@@ -59,8 +76,8 @@ device, run:
 The SDK bootstrap
 pins platform 36, build tools 36.0.0, NDK 29.0.14206865, CMake 3.22.1, and
 platform-tools 37.0.3. Gradle pins Kotlin, the Compose BOM, and the libsu root
-service library. The test command runs the native button-mode checks and
-Android lint.
+service library. The test command runs native button-mode checks, pure Kotlin automatic-selection
+regressions, and Android lint.
 
 ## GitHub builds and release signing
 
@@ -91,8 +108,8 @@ removes it on exit. Output appears in `dist/Thumbrest.apk` and
 `dist/Thumbrest.apk.sha256`. Keep the persistent keystore and passwords backed
 up outside the tool cache.
 
-The project targets ARM64 Android 10+ with Magisk. Local checks compile Kotlin
-and the native engine, run button-mode regressions, and run Android lint.
+The project targets ARM64 Android 10+ with Magisk. The build compiles Kotlin
+and the native engine; CI also compiles the Android integration harness.
 
 ## Native device checks
 
@@ -109,15 +126,37 @@ executable and directory from the device. It leaves physical controller input
 available for the app. CI also compiles this harness through
 `devbox run -- bash tool/check-device.sh --build-only`.
 
-On 2026-11-23 this command passed on an AYN Thor running Android 13 (API 33),
-ARM64, Magisk 31.1, firmware `Thor_V1.0.0.377_20260206_165408_user`. The
-device's existing SELinux mode was permissive. The tests cover physical-event
-mode selection, continuous hold, turbo edges, simultaneous button/axis
-passthrough, right-stick previews for RX/RY and the Thor's centered Z/RZ
-layout, rejection of unipolar triggers as stick axes, stale identity rejection,
-stop/disconnect cleanup, and a writer forcibly killed with a button held.
+The native checks passed on 2026-11-23 on an AYN Thor running Android 13 (API
+33), ARM64, Magisk 31.1, firmware `Thor_V1.0.0.377_20260206_165408_user`.
+The device's existing SELinux mode was permissive. Coverage includes:
 
-These checks exercise the production native engine through actual Android
-kernel input devices using generated inputs. Packaged-app root permission,
-physical button presses, visual behavior, and emulator gameplay still require
-the walkthrough above. Enforcing-mode behavior remains unverified.
+- Default physical input, immediate screen-command hold/turbo/default changes,
+  simultaneous ordinary button/axis passthrough, and preserved vendor mappings.
+- Right-stick previews for RX/RY and centered Z/RZ, with unipolar Z/RZ kept as
+  triggers.
+- Actual Android EventHub/InputReader removal of the original and registration
+  of its replacement, followed by restoration on Stop.
+- Stale identity rejection, restoration of the same inode/ownership/permissions,
+  disconnect cleanup, killed-writer recovery with a button held, and refusal to
+  overwrite a replacement node followed by recovery when that conflict ends.
+
+The fixtures use AYN's own vendor/product pair because this firmware captures
+unfamiliar gamepads and can enter a device/toast feedback loop. That behavior
+was investigated separately; the production virtual pad copies its source
+identity instead of publishing a generic zero vendor/product pair.
+
+An explicit, separate probe also passed against the real built-in **Odin
+Controller**: live Default input, Android enumeration/hiding, a stable session,
+and exact physical-node restoration. It generates no synthetic gameplay
+presses. To repeat that check on a Thor, with the app stopped:
+
+```sh
+ANDROID_SERIAL=your-device-serial devbox run -- bash tool/check-device.sh --physical-probe
+```
+
+The probe requires exactly one freshly identified built-in Thor pad; it does
+not choose an arbitrary controller. The normal `device-check` command only
+uses disposable generated pads. Native automated checks do not establish
+packaged-app permission handling, screen taps, dual-display focus, or emulator
+gameplay. Those remain covered by the owner walkthrough above. Enforcing-mode
+behavior and other Android devices remain unverified.

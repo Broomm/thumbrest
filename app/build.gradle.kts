@@ -44,7 +44,7 @@ android {
         targetSdk = 36
         versionCode = providers.environmentVariable("THUMBREST_VERSION_CODE")
             .map(String::toInt).getOrElse(1)
-        versionName = "0.1.0"
+        versionName = "0.2.0"
         ndk { abiFilters += "arm64-v8a" }
     }
 
@@ -101,4 +101,16 @@ dependencyLocking {
     // Kotlin's metadata-only redirect is absent in some AGP runtime resolution views.
     // The JVM kotlin-stdlib artifact remains locked.
     ignoredDependencies.add("org.jetbrains.kotlin:kotlin-stdlib-common")
+}
+
+// These selection checks use pure Kotlin and the existing toolchain, without
+// loading Android classes or introducing a test runtime into the application.
+tasks.register<JavaExec>("checkControllerChoice") {
+    dependsOn("compileDebugUnitTestKotlin")
+    mainClass.set("app.thumbrest.ControllerChoiceTestKt")
+    classpath = files(
+        layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),
+        layout.buildDirectory.dir("tmp/kotlin-classes/debug"),
+        configurations.named("debugUnitTestRuntimeClasspath"),
+    )
 }

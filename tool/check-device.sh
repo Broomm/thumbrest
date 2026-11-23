@@ -14,13 +14,13 @@ output="$PWD/.tool-cache/checks/device-session-test"
 mkdir -p "$(dirname "$output")"
 compiler="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/$host/bin/aarch64-linux-android29-clang++"
 "$compiler" -std=c++17 -O1 -Wall -Wextra -Werror -pthread -static-libstdc++ -fPIE -pie \
-    -Iapp/src/main/cpp app/src/main/cpp/linux_pad.cpp \
+    -Iapp/src/main/cpp app/src/main/cpp/linux_pad.cpp app/src/main/cpp/source_visibility.cpp \
     app/src/test/cpp/device_session_test.cpp -o "$output"
 
 case "${1:-}" in
     --build-only) exit 0 ;;
-    "") ;;
-    *) echo "Usage: check-device.sh [--build-only]" >&2; exit 1 ;;
+    ""|--physical-probe) ;;
+    *) echo "Usage: check-device.sh [--build-only|--physical-probe]" >&2; exit 1 ;;
 esac
 : "${ANDROID_SERIAL:?Set ANDROID_SERIAL to the test device serial from adb devices}"
 
@@ -36,4 +36,7 @@ cleanup() {
 trap cleanup EXIT
 "$adb" -s "$ANDROID_SERIAL" push "$output" "$remote_dir/check"
 "$adb" -s "$ANDROID_SERIAL" shell chmod 700 "$remote_dir/check"
-"$adb" -s "$ANDROID_SERIAL" shell su -c "$remote_dir/check"
+remote_command="$remote_dir/check"
+if [[ "${1:-}" == --physical-probe ]]; then remote_command+=" --physical-probe"; fi
+# Only the validated generated directory and a fixed flag enter the remote shell.
+"$adb" -s "$ANDROID_SERIAL" shell "su -c '$remote_command'"

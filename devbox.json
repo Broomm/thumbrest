@@ -13,7 +13,7 @@
     "scripts": {
       "sdk": "bash tool/prepare-sdk.sh",
       "build": "./gradlew :app:assembleDebug",
-      "check": "bash tool/check-native.sh && ./gradlew :app:lintDebug",
+      "check": "bash tool/check-native.sh && ./gradlew :app:checkControllerChoice :app:lintDebug",
       "release": "bash tool/build-release.sh",
       "device-check": "bash tool/check-device.sh"
     }

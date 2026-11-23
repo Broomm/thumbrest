@@ -30,7 +30,7 @@ Java_app_thumbrest_NativePad_scan(JNIEnv* env, jobject) {
         for (size_t index = 0; index < controllers.size(); ++index) {
             const auto& item = controllers[index];
             const auto row = std::to_string(item.node) + "\t" + item.identity + "\t" +
-                std::to_string(item.supported) + "\t" + item.name;
+                std::to_string(item.supported) + "\t" + item.stableId + "\t" + item.name;
             const auto value = env->NewStringUTF(row.c_str());
             if (!value) return nullptr;
             env->SetObjectArrayElement(result, static_cast<jsize>(index), value);
@@ -59,13 +59,12 @@ Java_app_thumbrest_NativePad_start(JNIEnv* env, jobject, jint node, jstring iden
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_app_thumbrest_NativePad_stop(JNIEnv*, jobject) {
+Java_app_thumbrest_NativePad_stop(JNIEnv* env, jobject) {
+    const auto status = session ? session->stop() : Status::Idle;
     session.reset();
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_app_thumbrest_NativePad_edit(JNIEnv*, jobject, jboolean enabled) {
-    if (session) session->setEditing(enabled);
+    if (status == Status::RestoreFailed) {
+        reportError(env, std::runtime_error("Could not restore the physical controller node. Reboot the device to restore its input devices."));
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -88,16 +87,11 @@ Java_app_thumbrest_NativePad_clear(JNIEnv*, jobject) {
 extern "C" JNIEXPORT jintArray JNICALL
 Java_app_thumbrest_NativePad_snapshot(JNIEnv* env, jobject) {
     const auto state = session ? session->snapshot() : Snapshot{};
-    const jint values[]{static_cast<jint>(state.status), state.editing,
+    const jint values[]{static_cast<jint>(state.status),
         static_cast<jint>(state.physical), static_cast<jint>(state.output),
         static_cast<jint>(state.held), static_cast<jint>(state.turbo),
         state.sticks[0], state.sticks[1], state.sticks[2], state.sticks[3]};
     auto array = env->NewIntArray(sizeof(values) / sizeof(*values));
     if (array) env->SetIntArrayRegion(array, 0, sizeof(values) / sizeof(*values), values);
     return array;
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_app_thumbrest_NativePad_visible(JNIEnv*, jobject, jboolean visible) {
-    if (session) session->setVisible(visible);
 }
