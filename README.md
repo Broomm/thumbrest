@@ -160,7 +160,21 @@ ANDROID_SERIAL=your-device-serial devbox run -- bash tool/check-device.sh --phys
 
 The probe requires exactly one freshly identified built-in Thor pad; it does
 not choose an arbitrary controller. The normal `device-check` command only
-uses disposable generated pads. Native automated checks do not establish
-packaged-app permission handling, screen taps, dual-display focus, or emulator
-gameplay. Those remain covered by the owner walkthrough above. Enforcing-mode
-behavior and other Android devices remain unverified.
+uses disposable generated pads.
+
+The signed APK **0.2.0 (7)** from revision `a637466` also passed packaged-app
+checks on that Thor. Existing Magisk permission was used, the remembered pad
+became Ready automatically, and Android listed its replacement with the upper
+display's unique ID. The lower-screen window was non-focusable while the upper
+emulator window retained key focus. Stop removed the display association and
+restored the original node. The pause survived force-stop and reopening;
+Resume reconnected automatically. Terminating the identified root writer and
+force-stopping the app both restored the exact physical inode, ownership, mode,
+and device number, removed virtual output, and left no recovery backups.
+Reopening reclaimed the Thumbrest-only display route. AYN's mapping process
+remained running throughout these checks.
+
+These packaged checks used ADB lifecycle commands and Android registry readback;
+they did not generate gameplay button presses or automate screen touches.
+The screen-tap sequence and emulator gameplay still need the owner walkthrough
+above. Enforcing-mode behavior and other Android devices remain unverified.

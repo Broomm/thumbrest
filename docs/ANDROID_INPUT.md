@@ -111,10 +111,46 @@ actual built-in pad in Default mode without generating gameplay presses.
 The app's secondary-display window uses FLAG_NOT_FOCUSABLE to keep
 controller key focus with the game while accepting touch, including when the
 root session stops or needs attention. The activity subscribes to one stable
-screen-state flow for both rendering and window updates. Actual Thor/Burnout
-focus, screen interaction, and gameplay must be owner-verified. No result on
-this permissive Thor establishes compatibility with enforcing kernels, other
-firmware, or other devices. Emulator-specific binding may still be needed once.
+screen-state flow for both rendering and window updates. Android registry
+readback verifies the window flags and the virtual pad's display association;
+screen interaction and actual Thor/Burnout gameplay must be owner-verified.
+No result on this permissive Thor establishes compatibility with enforcing
+kernels, other firmware, or other devices. Emulator-specific binding may still
+be needed once.
+
+The signed application **0.2.0 (7)**, revision `a637466`, was installed on the
+same Thor on 2026-11-23 after all checks in
+[CI run 45263778172](https://github.com/Broomm/thumbrest/actions/runs/45263778172)
+passed. Its SHA-256 is
+`da19b7660b48fe0c3f0ae3df86ab3ef17ac4848d794712b32e3f6d44db2cbd1e`.
+Signature/certificate, package/version, archive integrity, and 16 KiB alignment
+were verified before installation. Packaged-app observations were:
+
+- The existing Magisk grant started the real libsu root service automatically.
+  The UI and service both reported Ready with held/turbo masks zero.
+- Android's EventHub/InputReader contained one Thumbrest gamepad and no Odin
+  Controller entry. The replacement preserved the AYN vendor key layout and
+  had its own `app.thumbrest/gamepad` port associated with upper display 0.
+- The companion window on lower display 4 had NOT_FOCUSABLE, while the only
+  focused window remained the emulator on display 0. This verifies Android's
+  reported configuration; it does not substitute for touching the screen
+  during gameplay.
+- Stop removed virtual output and the temporary display association, restoring
+  the physical node with identical inode, character-device number, ownership,
+  and mode. Pause survived force-stop and reopening. Resume automatically
+  selected the remembered physical controller in Default mode.
+- SIGKILL delivered through an identity-verified pidfd to only the ART root
+  writer restored the original controller through the independent guardian.
+  Force-stopping the whole app separately also restored it. No recovery
+  backups remained. Reopening reclaimed the stale Thumbrest-only route once.
+- AYN's mapping service retained the same PID through all of
+  these packaged checks. No synthetic gameplay presses or screen touches
+  were generated.
+
+Local raw readbacks are under `.tool-cache/verification/apk-build-7-*`; the
+lifecycle and recovery reports distinguish deliberate writer termination from
+unexpected application crashes. The older fixture suite separately tested
+writer death while a synthetic button was Held.
 
 ## Dual-display routing
 
