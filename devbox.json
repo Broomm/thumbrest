@@ -6,7 +6,8 @@
   "env": {
     "ANDROID_HOME": "$PWD/.tool-cache/android/sdk",
     "ANDROID_USER_HOME": "$PWD/.tool-cache/android/user",
-    "GRADLE_USER_HOME": "$PWD/.tool-cache/gradle"
+    "GRADLE_USER_HOME": "$PWD/.tool-cache/gradle",
+    "ANDROID_SDK_ROOT": "$PWD/.tool-cache/android/sdk"
   },
   "shell": {
     "scripts": {
