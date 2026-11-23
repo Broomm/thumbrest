@@ -238,6 +238,19 @@ bool sample(int fd, const Capabilities& cap, SourceFrame& frame) {
     return true;
 }
 
+std::array<unsigned, 2> rightStickAxes(const Capabilities& cap) {
+    if (cap.axis[ABS_RX] && cap.axis[ABS_RY]) return {ABS_RX, ABS_RY};
+
+    // Android handhelds also use centered Z/RZ for the right stick.
+    // Unipolar Z/RZ axes remain trigger inputs.
+    if (cap.axis[ABS_Z] && cap.axis[ABS_RZ] &&
+        cap.info[ABS_Z].minimum < 0 && cap.info[ABS_Z].maximum > 0 &&
+        cap.info[ABS_RZ].minimum < 0 && cap.info[ABS_RZ].maximum > 0) {
+        return {ABS_Z, ABS_RZ};
+    }
+    return {ABS_RX, ABS_RY};
+}
+
 int normalizeStick(const Capabilities& cap, const SourceFrame& frame, unsigned code) {
     if (!cap.axis[code]) return 0;
     const auto& info = cap.info[code];
@@ -455,10 +468,11 @@ private:
     bool publishPhysical(bool complete) {
         std::lock_guard lock(mutex_);
         modes_.physicalFrame(raw_.buttons(), complete && visible_);
+        const auto right = rightStickAxes(capabilities_);
         sticks_ = {normalizeStick(capabilities_, raw_, ABS_X),
                    normalizeStick(capabilities_, raw_, ABS_Y),
-                   normalizeStick(capabilities_, raw_, ABS_RX),
-                   normalizeStick(capabilities_, raw_, ABS_RY)};
+                   normalizeStick(capabilities_, raw_, right[0]),
+                   normalizeStick(capabilities_, raw_, right[1])};
         return publish(Clock::now());
     }
 

@@ -6,7 +6,7 @@ publishes **Thumbrest Virtual Gamepad** for emulators and games.
 
 ## Try it
 
-1. Use a 64-bit ARM Android 10+ device with Magisk root and SELinux enforcing.
+1. Use a 64-bit ARM Android 10+ device with Magisk root.
    Install the APK, open Thumbrest, tap **Connect controllers**, and grant
    superuser access. Allow notifications if you want **Stop** in the notification.
 2. Choose a controller while its controls are idle. The diagram lights up as you
@@ -91,7 +91,33 @@ removes it on exit. Output appears in `dist/Thumbrest.apk` and
 `dist/Thumbrest.apk.sha256`. Keep the persistent keystore and passwords backed
 up outside the tool cache.
 
-The project targets ARM64 Android 10+ with Magisk. The initial local checks
-compile Kotlin and the native engine, run button-mode regressions, and run
-Android lint. Magisk operation, physical controllers, and emulator gameplay
-still require the on-device walkthrough above.
+The project targets ARM64 Android 10+ with Magisk. Local checks compile Kotlin
+and the native engine, run button-mode regressions, and run Android lint.
+
+## Native device checks
+
+With the test device attached over USB debugging, run:
+
+```sh
+ANDROID_SERIAL=your-device-serial devbox run device-check
+```
+
+Set `ADB` to an existing platform-tools `adb` executable to use it instead of
+the project-local copy. The command cross-compiles the production input engine,
+runs it as root against disposable kernel gamepads, then removes its temporary
+executable and directory from the device. It leaves physical controller input
+available for the app. CI also compiles this harness through
+`devbox run -- bash tool/check-device.sh --build-only`.
+
+On 2026-11-23 this command passed on an AYN Thor running Android 13 (API 33),
+ARM64, Magisk 31.1, firmware `Thor_V1.0.0.377_20260206_165408_user`. The
+device's existing SELinux mode was permissive. The tests cover physical-event
+mode selection, continuous hold, turbo edges, simultaneous button/axis
+passthrough, right-stick previews for RX/RY and the Thor's centered Z/RZ
+layout, rejection of unipolar triggers as stick axes, stale identity rejection,
+stop/disconnect cleanup, and a writer forcibly killed with a button held.
+
+These checks exercise the production native engine through actual Android
+kernel input devices using generated inputs. Packaged-app root permission,
+physical button presses, visual behavior, and emulator gameplay still require
+the walkthrough above. Enforcing-mode behavior remains unverified.

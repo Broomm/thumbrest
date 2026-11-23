@@ -40,6 +40,9 @@ jobs:
       - name: Check native button modes
         run: devbox run -- bash tool/check-native.sh
 
+      - name: Compile Android device regressions
+        run: devbox run -- bash tool/check-device.sh --build-only
+
       - name: Android lint
         if: ${{ !cancelled() }}
         run: devbox run -- ./gradlew --no-daemon :app:lintDebug

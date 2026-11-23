@@ -14,7 +14,8 @@
       "sdk": "bash tool/prepare-sdk.sh",
       "build": "./gradlew :app:assembleDebug",
       "check": "bash tool/check-native.sh && ./gradlew :app:lintDebug",
-      "release": "bash tool/build-release.sh"
+      "release": "bash tool/build-release.sh",
+      "device-check": "bash tool/check-device.sh"
     }
   }
 }
