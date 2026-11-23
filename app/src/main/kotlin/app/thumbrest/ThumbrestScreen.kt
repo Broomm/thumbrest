@@ -1,0 +1,260 @@
+package app.thumbrest
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
+
+internal val Mint = Color(0xFFB5F5C7)
+internal val Lilac = Color(0xFFD6BCFF)
+private val Line = Color(0xFF334640)
+private val PanelShape = RoundedCornerShape(24.dp)
+private val Colors = darkColorScheme(
+    background = Color(0xFF0E1513),
+    surface = Color(0xFF182420),
+    onBackground = Color(0xFFF2F8F4),
+    onSurface = Color(0xFFF2F8F4),
+    onSurfaceVariant = Color(0xFFAABFB4),
+    outline = Line,
+    primary = Mint,
+    onPrimary = Color(0xFF11261B),
+    secondary = Lilac,
+    errorContainer = Color(0xFF412621),
+    onErrorContainer = Color(0xFFFFDFD6),
+)
+
+@Composable
+internal fun ThumbrestTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = Colors, content = content)
+}
+
+@Composable
+internal fun ThumbrestScreen(
+    state: SessionState,
+    onConnect: () -> Unit,
+    onSelect: (PadDevice) -> Unit,
+    onEdit: (Boolean) -> Unit,
+    onCycle: (PadButton) -> Unit,
+    onRate: (Int) -> Unit,
+    onClear: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Thumbrest",
+                        Modifier.weight(1f),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 32.sp,
+                        letterSpacing = (-1.1).sp,
+                    )
+                    if (state.connected || state.connecting) {
+                        TextButton(onClick = onStop, enabled = !state.stopping) { Text("Stop") }
+                    }
+                }
+
+                (state.error ?: state.scanError)?.let { error ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+                    ) {
+                        Text(error, Modifier.padding(16.dp))
+                    }
+                }
+
+                val pad = state.selected
+                val snapshot = state.snapshot
+                when {
+                    state.stopping -> Pending("Releasing controller…")
+                    state.starting -> Pending("Opening controller…")
+                    pad != null && snapshot != null -> SessionEditor(
+                        pad, snapshot, state.rate, onEdit, onCycle, onRate, onClear,
+                    )
+                    state.connecting -> Pending("Waiting for Magisk…")
+                    state.connected -> DevicePicker(state.devices, state.scanning, state.scanError != null, onSelect)
+                    else -> CardPanel {
+                        ControllerBoard()
+                        Text("Hold buttons down or fire repeatedly without keeping your thumb on the controller.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
+                            Text("Connect controllers")
+                        }
+                        Text("Requires Magisk root", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardPanel(content: @Composable () -> Unit) {
+    Surface(
+        shape = PanelShape,
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth().border(1.dp, Line, PanelShape),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun DevicePicker(
+    devices: List<PadDevice>,
+    scanning: Boolean,
+    scanFailed: Boolean,
+    onSelect: (PadDevice) -> Unit,
+) {
+    CardPanel {
+        Text("Connected controllers", style = MaterialTheme.typography.titleMedium)
+        if (devices.isEmpty()) {
+            if (scanning) Pending("Looking for controllers…")
+            else if (!scanFailed) Text("Connect a Bluetooth or USB controller, or use your handheld’s built-in controls.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        devices.forEach { device ->
+            val subtitle = if (devices.count { it.name == device.name } > 1) "Input ${device.node}" else null
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFF23332C))
+                    .clickable(onClickLabel = "Use controller") { onSelect(device) }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(device.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    subtitle?.let {
+                        Text(it, style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Text("→", color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionEditor(
+    device: PadDevice,
+    snapshot: PadSnapshot,
+    rate: Int,
+    onEdit: (Boolean) -> Unit,
+    onCycle: (PadButton) -> Unit,
+    onRate: (Int) -> Unit,
+    onClear: () -> Unit,
+) {
+    CardPanel {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(device.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(if (snapshot.editing) "Editing" else "Live",
+                color = if (snapshot.editing) MaterialTheme.colorScheme.onSurfaceVariant else Mint,
+                style = MaterialTheme.typography.labelLarge)
+        }
+        ControllerBoard(device, snapshot, onCycle)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            ModeLegend("Neutral", Color(0xFF859C90))
+            ModeLegend("Held", Mint)
+            ModeLegend("Turbo", Lilac)
+        }
+        if (snapshot.editing) {
+            Text("Press a controller button or tap it above to change its mode.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Text("Open your emulator and select Thumbrest Virtual Gamepad.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+
+    if (snapshot.editing) {
+        CardPanel {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Turbo rate", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                Text("$rate presses/sec", color = Lilac, style = MaterialTheme.typography.labelLarge)
+            }
+            Slider(value = rate.toFloat(), onValueChange = { onRate(it.roundToInt()) },
+                valueRange = 1f..60f,
+                modifier = Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(onClick = onClear) { Text("Reset") }
+                Button(onClick = { onEdit(false) }, modifier = Modifier.weight(1f)) { Text("Apply modes") }
+            }
+        }
+    } else {
+        OutlinedButton(onClick = { onEdit(true) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Edit modes")
+        }
+    }
+}
+
+@Composable
+private fun ModeLegend(label: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Spacer(Modifier.size(7.dp).background(color, CircleShape))
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+private fun Pending(label: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        Text(label)
+    }
+}

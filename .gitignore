@@ -1,0 +1,14 @@
+.gradle/
+.devbox/
+.tool-cache/
+**/.cxx/
+**/build/
+local.properties
+*.iml
+.idea/
+dist/
+.kotlin/
+*.jks
+*.p12
+*.keystore
+key.properties

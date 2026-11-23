@@ -1,0 +1,87 @@
+name: Thumbrest Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thumbrest-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      DEVBOX_NO_UPDATE_CHECK: '1'
+      THUMBREST_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Devbox
+        uses: jetify-com/devbox-install-action@734088efddca47cf44ff8a09289c6d0e51b73218
+        with:
+          devbox-version: '0.18.4'
+          sha256-checksum: a33132e23b71833baa698f28d17c7872a11233271e0b8a07669c2bdaf37c30e0
+          refresh-cli: 'true'
+          disable-nix-access-token: 'true'
+
+      - name: Prepare pinned Android SDK and NDK
+        run: devbox run sdk
+
+      - name: Check native button modes
+        run: devbox run -- bash tool/check-native.sh
+
+      - name: Android lint
+        if: ${{ !cancelled() }}
+        run: devbox run -- ./gradlew --no-daemon :app:lintDebug
+
+      - name: Build debug APK for pull requests
+        if: github.event_name == 'pull_request'
+        run: devbox run build
+
+      - name: Build and verify signed APK
+        if: github.event_name != 'pull_request'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: devbox run release
+
+      - name: Upload signed APK
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Thumbrest-android-arm64
+          path: |
+            dist/Thumbrest.apk
+            dist/Thumbrest.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload debug APK
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Thumbrest-debug-android-arm64
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload check reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Thumbrest-check-reports
+          path: app/build/reports/
+          if-no-files-found: ignore
+          retention-days: 14

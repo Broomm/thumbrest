@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Thumbrest</string>
+    <string name="session_channel">Controller session</string>
+    <string name="session_notification">Controller session active</string>
+    <string name="session_notification_body">Stop to return control to the physical gamepad.</string>
+    <string name="stop_session">Stop</string>
+</resources>

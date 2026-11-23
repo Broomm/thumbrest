@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.18.4/.schema/devbox.schema.json",
+  "packages": [
+    "github:NixOS/nixpkgs/aa48d347080940b8a2b8d2f48228674e280a3514#jdk21"
+  ],
+  "env": {
+    "ANDROID_HOME": "$PWD/.tool-cache/android/sdk",
+    "ANDROID_USER_HOME": "$PWD/.tool-cache/android/user",
+    "GRADLE_USER_HOME": "$PWD/.tool-cache/gradle"
+  },
+  "shell": {
+    "scripts": {
+      "sdk": "bash tool/prepare-sdk.sh",
+      "build": "./gradlew :app:assembleDebug",
+      "check": "bash tool/check-native.sh && ./gradlew :app:lintDebug",
+      "release": "bash tool/build-release.sh"
+    }
+  }
+}
