@@ -24,6 +24,8 @@ import com.topjohnwu.superuser.ipc.RootService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import java.io.FileDescriptor
+import java.io.PrintWriter
 
 internal data class SessionState(
     val connecting: Boolean = false,
@@ -62,6 +64,14 @@ class SessionService : Service() {
     }
 
     override fun onBind(intent: Intent): IBinder = LocalBinder()
+
+    override fun dump(fd: FileDescriptor, writer: PrintWriter, args: Array<out String>?) {
+        val current = state.value
+        writer.println("Connected=${current.connected} starting=${current.starting} stopping=${current.stopping}")
+        writer.println("Controller=${current.selected?.name} node=${current.selected?.node} visible=$visible")
+        writer.println("Status=${current.snapshot?.status} held=${current.snapshot?.held} turbo=${current.snapshot?.turbo}")
+        writer.println("Rate=${current.rate} error=${current.error} scanError=${current.scanError}")
+    }
 
     internal fun takeAutomaticStart(): Boolean {
         if (automaticAttempted || connection != null || !preferences.getBoolean("enabled", true)) return false
@@ -255,6 +265,7 @@ class SessionService : Service() {
                 if (snapshot?.status == 1) {
                     state.value.selected?.let { pad -> preferences.edit { putString("controller", pad.stableId) } }
                     mutableState.update { it.copy(starting = false, snapshot = snapshot) }
+                    Log.i(TAG, "Live controller state published to the companion")
                     schedulePoll(0)
                 } else {
                     blockedIdentity = state.value.selected?.identity

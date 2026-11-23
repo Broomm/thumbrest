@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import android.view.Display
 import android.view.WindowManager
 import android.view.KeyEvent
@@ -31,6 +32,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class MainActivity : ComponentActivity() {
     private var session by mutableStateOf<SessionService?>(null)
     private var bound = false
+    private var windowUpdateQueued = false
+    private var requestedReady = false
+    private var appliedWindowFlags: Int? = null
 
     private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         if (!isFinishing) connect()
@@ -60,7 +64,7 @@ class MainActivity : ComponentActivity() {
             val fallback = remember { MutableStateFlow(SessionState()) }
             val service = session
             val state by (service?.state ?: fallback).collectAsState()
-            SideEffect { updateCompanionWindow(state.snapshot != null) }
+            SideEffect { scheduleCompanionWindow(state.snapshot != null) }
             ThumbrestTheme {
                 ThumbrestScreen(
                     state = state,
@@ -88,15 +92,32 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    private fun scheduleCompanionWindow(ready: Boolean) {
+        requestedReady = ready
+        if (windowUpdateQueued) return
+        windowUpdateQueued = true
+        // Initial composition can run during WindowManager.addView, before the
+        // Activity can propagate attribute changes. Apply after attachment.
+        window.decorView.post {
+            windowUpdateQueued = false
+            if (!isDestroyed) updateCompanionWindow(requestedReady)
+        }
+    }
+
     private fun updateCompanionWindow(ready: Boolean) {
-        val secondary = window.decorView.display?.displayId?.let { it != Display.DEFAULT_DISPLAY } == true
+        val displayId = window.decorView.display?.displayId
+        val secondary = displayId != null && displayId != Display.DEFAULT_DISPLAY
         val noFocus = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         val keepOn = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         val managed = noFocus or keepOn
         // Touch controls on a second display must not take controller key focus
         // from the game. Avoid a window-manager update on every preview frame.
         val desired = (if (ready && secondary) noFocus else 0) or (if (ready) keepOn else 0)
-        if ((window.attributes.flags and managed) != desired) window.setFlags(desired, managed)
+        if (appliedWindowFlags != desired) {
+            window.setFlags(desired, managed)
+            appliedWindowFlags = desired
+            Log.i("ThumbrestWindow", "Ready=$ready display=$displayId companionFlags=$desired")
+        }
     }
 
     private fun guardAgainstVirtualInput() {
