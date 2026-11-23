@@ -107,8 +107,10 @@ stick previews, identity, hiding, normal stop, disconnect, forced writer death,
 and a conflicting replacement node. The dedicated physical probe verifies the
 actual built-in pad in Default mode without generating gameplay presses.
 
-The app's secondary-display window uses FLAG_NOT_FOCUSABLE while ready to keep
-controller key focus with the game while accepting touch. Actual Thor/Burnout
+The app's secondary-display window uses FLAG_NOT_FOCUSABLE to keep
+controller key focus with the game while accepting touch, including when the
+root session stops or needs attention. The activity subscribes to one stable
+screen-state flow for both rendering and window updates. Actual Thor/Burnout
 focus, screen interaction, and gameplay must be owner-verified. No result on
 this permissive Thor establishes compatibility with enforcing kernels, other
 firmware, or other devices. Emulator-specific binding may still be needed once.

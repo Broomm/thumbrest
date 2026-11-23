@@ -21,16 +21,18 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.edit
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
-    private var session by mutableStateOf<SessionService?>(null)
+    private var session: SessionService? = null
+    private val screenState = MutableStateFlow(SessionState())
+    private var stateSubscription: Job? = null
     private var bound = false
     private var windowUpdateQueued = false
     private var requestedReady = false
@@ -42,14 +44,25 @@ class MainActivity : ComponentActivity() {
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-            session = (binder as SessionService.LocalBinder).service.also {
-                it.setVisible(true)
-                if (it.takeAutomaticStart()) requestConnection()
+            val service = (binder as SessionService.LocalBinder).service
+            session = service
+            stateSubscription?.cancel()
+            stateSubscription = lifecycleScope.launch {
+                service.state.collect { current ->
+                    screenState.value = current
+                    scheduleCompanionWindow(current.snapshot != null)
+                }
             }
+            service.setVisible(true)
+            if (service.takeAutomaticStart()) requestConnection()
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
+            stateSubscription?.cancel()
+            stateSubscription = null
             session = null
+            screenState.value = SessionState(error = "Controller service disconnected. Tap Resume to reconnect.")
+            scheduleCompanionWindow(false)
         }
     }
 
@@ -59,21 +72,24 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
+        if (Build.VERSION.SDK_INT >= 30 && display?.displayId?.let { it != Display.DEFAULT_DISPLAY } == true) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        }
         guardAgainstVirtualInput()
         setContent {
-            val fallback = remember { MutableStateFlow(SessionState()) }
-            val service = session
-            val state by (service?.state ?: fallback).collectAsState()
-            SideEffect { scheduleCompanionWindow(state.snapshot != null) }
+            val state by screenState.collectAsState()
+            LaunchedEffect(state.snapshot?.status, state.snapshot?.held, state.snapshot?.turbo) {
+                Log.i("ThumbrestUI", "Status=${state.snapshot?.status} held=${state.snapshot?.held} turbo=${state.snapshot?.turbo}")
+            }
             ThumbrestTheme {
                 ThumbrestScreen(
                     state = state,
                     onConnect = ::requestConnection,
-                    onSelect = { service?.select(it) },
-                    onCycle = { service?.cycle(it) },
-                    onRate = { service?.setRate(it) },
-                    onClear = { service?.clearModes() },
-                    onStop = { service?.stopSession() },
+                    onSelect = { session?.select(it) },
+                    onCycle = { session?.cycle(it) },
+                    onRate = { session?.setRate(it) },
+                    onClear = { session?.clearModes() },
+                    onStop = { session?.stopSession() },
                 )
             }
         }
@@ -86,6 +102,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         session?.setVisible(false)
+        stateSubscription?.cancel()
+        stateSubscription = null
         if (bound) unbindService(connection)
         bound = false
         session = null
@@ -112,7 +130,7 @@ class MainActivity : ComponentActivity() {
         val managed = noFocus or keepOn
         // Touch controls on a second display must not take controller key focus
         // from the game. Avoid a window-manager update on every preview frame.
-        val desired = (if (ready && secondary) noFocus else 0) or (if (ready) keepOn else 0)
+        val desired = (if (secondary) noFocus else 0) or (if (ready) keepOn else 0)
         if (appliedWindowFlags != desired) {
             window.setFlags(desired, managed)
             appliedWindowFlags = desired
