@@ -59,8 +59,9 @@ reported through the root service; an unrecoverable node conflict retains its
 private backup instead of replacing another device. Reboot recreates `/dev`
 from the device's normal producers if recovery cannot complete.
 
-No global input configuration, OEM settings, SELinux mode, or Magisk policy is
-changed. No third-party firmware code is copied or shipped.
+No original-controller configuration, OEM settings, SELinux mode, or Magisk
+policy is changed. A temporary display association is scoped to Thumbrest's own
+uinput port. No third-party firmware code is copied or shipped.
 
 ## Thor firmware interaction
 
@@ -114,3 +115,38 @@ screen-state flow for both rendering and window updates. Actual Thor/Burnout
 focus, screen interaction, and gameplay must be owner-verified. No result on
 this permissive Thor establishes compatibility with enforcing kernels, other
 firmware, or other devices. Emulator-specific binding may still be needed once.
+
+## Dual-display routing
+
+A non-focusable lower-screen activity keeps its own window from receiving
+controller keys. On this Thor, however, Android can retain FocusedDisplayId=4
+while the only focused game window is on display 0. Unassociated gamepad input
+would still target that global display selection. The activity therefore
+requests a root-side display association whenever it is on a secondary display.
+The gamepad has a dedicated `app.thumbrest/gamepad` physical-port tag, and only
+that tag is associated with the default game display's actual unique ID. The
+physical controller's port and associations are untouched. Single-display use
+clears the association and follows normal Android focus.
+
+The root adapter uses Android's unique-ID association API (including the newer
+ByPort method names), with physical-display-port association as a fallback.
+Unsupported APIs fail visibly before capture. It waits for the virtual pad to
+appear in Android's input-device registry before reporting Ready. Android 13
+has no Java InputDevice associated-display accessor, so native InputReader
+readback is part of device validation; newer releases expose an additional
+accessor the adapter can check directly.
+
+A neutral disposable gamepad probe passed on the Thor: its InputReader entry
+had `AssociatedDisplayUniqueId` matching the default physical display and
+sources KEYBOARD, GAMEPAD, and JOYSTICK. The temporary association and probe
+were removed afterward. No key or axis events were emitted by that probe.
+Android 13's KeyboardInputMapper and JoystickInputMapper both use the
+associated viewport when assigning event display IDs:
+
+- [Android 13 joystick event routing](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-13.0.0_r1/services/inputflinger/reader/mapper/JoystickInputMapper.cpp).
+- [Android 13 keyboard/gamepad key routing](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-13.0.0_r1/services/inputflinger/reader/mapper/KeyboardInputMapper.cpp).
+
+Stop clears the temporary association. Abrupt root-writer death can leave one
+in-memory association for the now-absent Thumbrest port; it cannot affect the
+restored physical device. The next connection clears that stale association
+before configuring its route. No system configuration file is written.

@@ -176,6 +176,9 @@ void lifecycleAndModes(unsigned rightX, unsigned rightY, bool triggers = false) 
     const auto outputPath = newVirtual(baseline);
     require(session->snapshot().status == Status::Active, "The live session ended before its output was opened: " + std::to_string(static_cast<int>(session->snapshot().status)));
     Descriptor output(open(outputPath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC), "Open live virtual output");
+    std::array<char, 128> port{};
+    require(ioctl(output.get(), EVIOCGPHYS(port.size()), port.data()) > 0 &&
+            std::string(port.data()) == virtualInputPort(), "The virtual controller has no stable routing port");
     input_id outputId{};
     require(ioctl(output.get(), EVIOCGID, &outputId) == 0 && outputId.bustype == BUS_USB &&
             outputId.vendor == 0x2020 && outputId.product == 0x0111 && outputId.version == 0,

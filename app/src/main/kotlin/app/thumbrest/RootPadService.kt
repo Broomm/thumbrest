@@ -14,6 +14,7 @@ import com.topjohnwu.superuser.ipc.RootService
 internal object NativePad {
     init { System.loadLibrary("thumbrest") }
 
+    external fun inputPort(): String
     external fun scan(): Array<String>
     external fun start(node: Int, identity: String, rate: Int)
     external fun stop()
@@ -26,6 +27,7 @@ internal object NativePad {
 class RootPadService : RootService() {
     private lateinit var worker: HandlerThread
     private lateinit var handler: Handler
+    private val routing by lazy { DisplayRouting(this, NativePad.inputPort()) }
 
     override fun onCreate() {
         worker = HandlerThread("Thumbrest root commands").apply { start() }
@@ -43,7 +45,7 @@ class RootPadService : RootService() {
         handler.removeCallbacksAndMessages(null)
         handler.post {
             try {
-                NativePad.stop()
+                stopPad()
                 Log.i(TAG, "Controller released on root service shutdown")
             } catch (error: Exception) {
                 Log.e(TAG, "Controller recovery failed during root service shutdown", error)
@@ -62,11 +64,26 @@ class RootPadService : RootService() {
                 PadProtocol.START -> {
                     val identity = requireNotNull(request.data.getString("identity"))
                     require(request.arg1 >= 0 && request.arg2 in 1..60)
-                    NativePad.start(request.arg1, identity, request.arg2)
-                    result.putIntArray("snapshot", NativePad.snapshot())
-                    Log.i(TAG, "Controller ready: event${request.arg1}")
+                    try {
+                        routing.prepare(request.data.getInt("targetDisplay", -1))
+                        NativePad.start(request.arg1, identity, request.arg2)
+                        routing.awaitVirtualController()
+                        result.putIntArray("snapshot", NativePad.snapshot())
+                        result.putInt("targetDisplay", routing.target)
+                        Log.i(TAG, "Controller ready: event${request.arg1}, display=${routing.target}")
+                    } catch (error: Throwable) {
+                        try { stopPad() } catch (cleanup: Throwable) { error.addSuppressed(cleanup) }
+                        throw error
+                    }
                 }
                 PadProtocol.SNAPSHOT -> result.putIntArray("snapshot", NativePad.snapshot())
+                PadProtocol.ROUTE -> {
+                    routing.prepare(request.arg1)
+                    routing.awaitVirtualController()
+                    result.putInt("targetDisplay", routing.target)
+                    result.putIntArray("snapshot", NativePad.snapshot())
+                    Log.i(TAG, "Controller display route changed to ${routing.target}")
+                }
                 PadProtocol.CYCLE -> {
                     NativePad.cycle(request.arg1)
                     result.putIntArray("snapshot", NativePad.snapshot())
@@ -81,7 +98,7 @@ class RootPadService : RootService() {
                     result.putIntArray("snapshot", NativePad.snapshot())
                 }
                 PadProtocol.STOP, PadProtocol.RELEASE -> {
-                    NativePad.stop()
+                    stopPad()
                     Log.i(TAG, "Controller released")
                 }
                 else -> return
@@ -98,8 +115,17 @@ class RootPadService : RootService() {
             request.replyTo?.send(Message.obtain(null, request.what).apply { data = result })
         } catch (_: RemoteException) {
             // libsu also closes the root process once the client dies.
-            runCatching { NativePad.stop() }
+            runCatching { stopPad() }
         }
+    }
+
+    private fun stopPad() {
+        var failure: Throwable? = null
+        try { NativePad.stop() } catch (error: Throwable) { failure = error }
+        try { routing.clear() } catch (error: Throwable) {
+            if (failure == null) failure = error else failure.addSuppressed(error)
+        }
+        failure?.let { throw it }
     }
 
     companion object { private const val TAG = "ThumbrestRoot" }

@@ -49,8 +49,10 @@ For owner verification, use an emulator controller tester or a disposable race:
 confirm ordinary menus, one-tap Held, two-tap return to Default, steering beside
 Held/Turbo, and continued game focus when touching the lower screen. Verify
 Stop and force-stop return direct physical input. The secondary-display window
-accepts touch without requesting controller key focus; actual Thor/Burnout
-focus and gameplay behavior need this hands-on check.
+accepts touch without requesting controller key focus. Its virtual pad is
+associated with the upper/default display so a lower-screen touch cannot
+redirect its events. Actual Thor/Burnout focus and gameplay behavior need this
+hands-on check.
 
 ## Build with Devbox
 
@@ -113,7 +115,9 @@ and the native engine; CI also compiles the Android integration harness.
 
 ## Native device checks
 
-With the test device attached over USB debugging, run:
+Close games before running the generated-input suite: its disposable pads emit
+ordinary button and axis events into Android. With the test device attached
+over USB debugging and Thumbrest stopped, run:
 
 ```sh
 ANDROID_SERIAL=your-device-serial devbox run device-check

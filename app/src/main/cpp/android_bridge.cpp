@@ -20,6 +20,11 @@ void reportError(JNIEnv* env, const std::exception& error) {
 
 } // namespace
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_app_thumbrest_NativePad_inputPort(JNIEnv* env, jobject) {
+    return env->NewStringUTF(virtualInputPort());
+}
+
 extern "C" JNIEXPORT jobjectArray JNICALL
 Java_app_thumbrest_NativePad_scan(JNIEnv* env, jobject) {
     try {

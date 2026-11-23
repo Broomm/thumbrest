@@ -29,6 +29,7 @@ namespace thumbrest {
 namespace {
 
 constexpr char kVirtualName[] = "Thumbrest Virtual Gamepad";
+constexpr char kVirtualPort[] = "app.thumbrest/gamepad";
 constexpr std::array<unsigned, ButtonCount> kKeyCodes{
     BTN_SOUTH, BTN_EAST, BTN_NORTH, BTN_WEST, BTN_TL, BTN_TR, BTN_TL2, BTN_TR2,
     BTN_THUMBL, BTN_THUMBR, BTN_SELECT, BTN_START, BTN_DPAD_UP, BTN_DPAD_DOWN,
@@ -211,6 +212,7 @@ bool virtualAxis(const Capabilities& cap, unsigned axis) {
 
 Fd createVirtual(const Capabilities& cap) {
     auto fd = openVirtual();
+    requireIoctl(fd.get(), UI_SET_PHYS, kVirtualPort, "Set the virtual controller input port");
     requireIoctl(fd.get(), UI_SET_EVBIT, EV_KEY, "Configure virtual gamepad buttons");
     for (unsigned index = 0; index < kKeyCodes.size(); ++index) {
         if (index >= Up && index <= Right) continue; // D-pad is exposed as a hat.
@@ -317,6 +319,7 @@ bool writeReport(int fd, const input_event* events, size_t count) {
 } // namespace
 
 bool isVirtualController(const std::string& name) { return name == kVirtualName; }
+const char* virtualInputPort() { return kVirtualPort; }
 
 std::vector<Controller> scanControllers() {
     std::unique_ptr<DIR, decltype(&closedir)> dir(opendir("/dev/input"), closedir);

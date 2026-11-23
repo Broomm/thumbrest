@@ -9,6 +9,7 @@ internal object PadProtocol {
     const val CLEAR = 7
     const val STOP = 8
     const val RELEASE = 9
+    const val ROUTE = 10
 
     const val VIRTUAL_NAME = "Thumbrest Virtual Gamepad"
 }

@@ -19,6 +19,7 @@ struct Controller {
 
 std::vector<Controller> scanControllers();
 bool isVirtualController(const std::string& name);
+const char* virtualInputPort();
 
 enum class Status { Idle, Active, Disconnected, ReadFailed, WriteFailed, GuardFailed, RestoreFailed };
 

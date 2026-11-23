@@ -18,6 +18,7 @@ import android.os.Messenger
 import android.os.RemoteException
 import android.os.SystemClock
 import android.util.Log
+import android.view.Display
 import androidx.core.content.edit
 import com.topjohnwu.superuser.Shell
 import com.topjohnwu.superuser.ipc.RootService
@@ -57,6 +58,8 @@ class SessionService : Service() {
     private var automaticAttempted = false
     private var blockedIdentity: String? = null
     private var releasing = false
+    private var targetDisplay = Display.INVALID_DISPLAY
+    private var confirmedDisplay: Int? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -71,6 +74,7 @@ class SessionService : Service() {
         writer.println("Controller=${current.selected?.name} node=${current.selected?.node} visible=$visible")
         writer.println("Status=${current.snapshot?.status} held=${current.snapshot?.held} turbo=${current.snapshot?.turbo}")
         writer.println("Rate=${current.rate} error=${current.error} scanError=${current.scanError}")
+        writer.println("DisplayRouteRequested=$targetDisplay confirmed=$confirmedDisplay")
     }
 
     internal fun takeAutomaticStart(): Boolean {
@@ -98,6 +102,13 @@ class SessionService : Service() {
         super.onDestroy()
     }
 
+    internal fun setCompanionDisplay(displayId: Int) {
+        val target = if (displayId != Display.DEFAULT_DISPLAY) Display.DEFAULT_DISPLAY else Display.INVALID_DISPLAY
+        if (targetDisplay == target) return
+        targetDisplay = target
+        if (state.value.snapshot?.status == 1 && !state.value.stopping) send(PadProtocol.ROUTE, target)
+    }
+
     internal fun setVisible(value: Boolean) {
         visible = value
         if (value) {
@@ -112,6 +123,7 @@ class SessionService : Service() {
         mutableState.update { it.copy(selected = controller, starting = true, error = null) }
         send(PadProtocol.START, controller.node, current.rate, Bundle().apply {
             putString("identity", controller.identity)
+            putInt("targetDisplay", targetDisplay)
         })
     }
 
@@ -264,6 +276,7 @@ class SessionService : Service() {
                 val snapshot = PadSnapshot.parse(message.data.getIntArray("snapshot"))
                 if (snapshot?.status == 1) {
                     state.value.selected?.let { pad -> preferences.edit { putString("controller", pad.stableId) } }
+                    confirmedDisplay = message.data.getInt("targetDisplay", Display.INVALID_DISPLAY)
                     mutableState.update { it.copy(starting = false, snapshot = snapshot) }
                     Log.i(TAG, "Live controller state published to the companion")
                     schedulePoll(0)
@@ -276,10 +289,13 @@ class SessionService : Service() {
                     send(PadProtocol.RELEASE)
                 }
             }
-            PadProtocol.SNAPSHOT, PadProtocol.CYCLE, PadProtocol.CLEAR, PadProtocol.RATE -> {
+            PadProtocol.SNAPSHOT, PadProtocol.CYCLE, PadProtocol.CLEAR, PadProtocol.RATE, PadProtocol.ROUTE -> {
                 if (message.what == PadProtocol.SNAPSHOT) snapshotPending = false
                 val snapshot = PadSnapshot.parse(message.data.getIntArray("snapshot"))
                 if (snapshot?.status == 1 && error == null) {
+                    if (message.what == PadProtocol.ROUTE) {
+                        confirmedDisplay = message.data.getInt("targetDisplay", Display.INVALID_DISPLAY)
+                    }
                     mutableState.update { it.copy(snapshot = snapshot) }
                 } else {
                     if (snapshot?.status != 2) blockedIdentity = state.value.selected?.identity
@@ -298,6 +314,7 @@ class SessionService : Service() {
                 }
             }
             PadProtocol.RELEASE -> {
+                confirmedDisplay = null
                 releasing = false
                 snapshotPending = false
                 if (error != null) finish(error) else { scan(); schedulePoll(0) }
@@ -319,6 +336,7 @@ class SessionService : Service() {
         releaseConnection()
         snapshotPending = false
         releasing = false
+        confirmedDisplay = null
         mutableState.value = SessionState(rate = state.value.rate, error = error)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

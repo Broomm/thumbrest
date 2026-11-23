@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
                     scheduleCompanionWindow(current.snapshot != null)
                 }
             }
+            service.setCompanionDisplay(currentDisplayId())
             service.setVisible(true)
             if (service.takeAutomaticStart()) requestConnection()
         }
@@ -110,6 +111,11 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    @Suppress("DEPRECATION")
+    private fun currentDisplayId(): Int = if (Build.VERSION.SDK_INT >= 30) {
+        display?.displayId ?: windowManager.defaultDisplay.displayId
+    } else windowManager.defaultDisplay.displayId
+
     private fun scheduleCompanionWindow(ready: Boolean) {
         requestedReady = ready
         if (windowUpdateQueued) return
@@ -125,6 +131,7 @@ class MainActivity : ComponentActivity() {
     private fun updateCompanionWindow(ready: Boolean) {
         val displayId = window.decorView.display?.displayId
         val secondary = displayId != null && displayId != Display.DEFAULT_DISPLAY
+        displayId?.let { session?.setCompanionDisplay(it) }
         val noFocus = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         val keepOn = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         val managed = noFocus or keepOn
