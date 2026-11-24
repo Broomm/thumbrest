@@ -26,6 +26,15 @@ active Held/Turbo modes attached to the same physical button positions. Switch
 letters follow Nintendo's face arrangement (B south, A east, Y west, X north);
 PlayStation shapes are drawn directly so they do not depend on font glyphs.
 
+**Invert face glyphs** is a separate remembered Boolean appearance preference,
+defaulting to false. It resolves A↔B and X↔Y only while choosing each control's
+visual label, vector shape, color, and accessible name. All three styles support
+it; PlayStation swaps Cross/Circle and Square/Triangle. Hit testing, supported
+buttons, pressed state, mode masks, and outgoing cycle commands keep using the
+original button identity. Switching either appearance option requires no root
+command or controller restart and does not transfer an active mode to another
+physical button.
+
 On 2026-11-24 the owner reported that signed build 0.2.0 (7) worked perfectly.
 That is owner-reported acceptance of the prior Thor workflow. The new visual
 styles need their own on-device visual check; no device was connected while

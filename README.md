@@ -40,6 +40,14 @@ Cross/Circle/Square/Triangle glyphs and Share/Options. The styles change only
 presentation. Physical button positions, input mappings, and active Held/Turbo
 modes stay the same. Xbox is the default.
 
+Enable **Invert face glyphs** in the same section to swap **A/B** and **X/Y**
+for controllers with the opposite face-label arrangement. PlayStation swaps
+Cross/Circle and Square/Triangle, including glyph colors. This saved option is
+independent of the style and applies immediately. It changes the labels shown
+on each control, including spoken names; the physical input, tap targets, and
+active Held/Turbo modes stay attached to their original buttons. It is off by
+default, preserving your existing layout until you enable it.
+
 The preview handles digital gamepad buttons and common joystick axes from one
 Linux event node. Additional physical keys pass through; analog-only controls
 remain axes. Rumble forwarding is not implemented. Button modes last for the

@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
     private var session: SessionService? = null
     private val screenState = MutableStateFlow(SessionState())
     private val controllerStyle = MutableStateFlow(ControllerStyle.Xbox)
+    private val invertFaceGlyphs = MutableStateFlow(false)
     private var stateSubscription: Job? = null
     private var bound = false
     private var windowUpdateQueued = false
@@ -70,9 +71,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        controllerStyle.value = ControllerStyle.fromPreference(
-            getSharedPreferences("appearance", MODE_PRIVATE).getString("controllerStyle", null),
-        )
+        val appearance = getSharedPreferences("appearance", MODE_PRIVATE)
+        controllerStyle.value = ControllerStyle.fromPreference(appearance.getString("controllerStyle", null))
+        invertFaceGlyphs.value = appearance.getBoolean("invertFaceGlyphs", false)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -84,6 +85,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by screenState.collectAsState()
             val style by controllerStyle.collectAsState()
+            val inverted by invertFaceGlyphs.collectAsState()
             LaunchedEffect(state.snapshot?.status, state.snapshot?.held, state.snapshot?.turbo) {
                 Log.i("ThumbrestUI", "Status=${state.snapshot?.status} held=${state.snapshot?.held} turbo=${state.snapshot?.turbo}")
             }
@@ -92,6 +94,8 @@ class MainActivity : ComponentActivity() {
                     state = state,
                     controllerStyle = style,
                     onStyleChange = ::setControllerStyle,
+                    invertFaceGlyphs = inverted,
+                    onInvertFaceGlyphsChange = ::setInvertFaceGlyphs,
                     onConnect = ::requestConnection,
                     onSelect = { session?.select(it) },
                     onCycle = { session?.cycle(it) },
@@ -170,6 +174,14 @@ class MainActivity : ComponentActivity() {
             putString("controllerStyle", style.preferenceId)
         }
         controllerStyle.value = style
+    }
+
+    private fun setInvertFaceGlyphs(inverted: Boolean) {
+        if (invertFaceGlyphs.value == inverted) return
+        getSharedPreferences("appearance", MODE_PRIVATE).edit {
+            putBoolean("invertFaceGlyphs", inverted)
+        }
+        invertFaceGlyphs.value = inverted
     }
 
     private fun requestConnection() {

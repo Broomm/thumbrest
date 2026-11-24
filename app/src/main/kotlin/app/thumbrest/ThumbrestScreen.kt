@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +29,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +77,8 @@ internal fun ThumbrestScreen(
     state: SessionState,
     controllerStyle: ControllerStyle,
     onStyleChange: (ControllerStyle) -> Unit,
+    invertFaceGlyphs: Boolean,
+    onInvertFaceGlyphsChange: (Boolean) -> Unit,
     onConnect: () -> Unit,
     onSelect: (PadDevice) -> Unit,
     onCycle: (PadButton) -> Unit,
@@ -117,12 +123,12 @@ internal fun ThumbrestScreen(
                     state.stopping -> Pending("Releasing controller…")
                     state.starting -> Pending("Opening controller…")
                     pad != null && snapshot != null -> LiveController(
-                        pad, snapshot, controllerStyle, state.rate, onCycle, onRate, onClear,
+                        pad, snapshot, controllerStyle, invertFaceGlyphs, state.rate, onCycle, onRate, onClear,
                     )
                     state.connecting -> Pending("Waiting for Magisk…")
                     state.connected -> DevicePicker(state.devices, state.scanning, state.scanError != null, onSelect)
                     else -> CardPanel {
-                        ControllerBoard(style = controllerStyle)
+                        ControllerBoard(style = controllerStyle, invertFaceGlyphs = invertFaceGlyphs)
                         Text("Hold buttons down or fire repeatedly without keeping your thumb on the controller.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
@@ -143,6 +149,23 @@ internal fun ThumbrestScreen(
                                 label = { Text(style.label) },
                             )
                         }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(
+                            value = invertFaceGlyphs,
+                            role = Role.Switch,
+                            onValueChange = onInvertFaceGlyphsChange,
+                        ),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Invert face glyphs")
+                            Text("Swap A/B and X/Y, or their PlayStation symbols.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked = invertFaceGlyphs, onCheckedChange = null)
                     }
                     Text("Changes the diagram’s labels and glyphs.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -206,6 +229,7 @@ private fun LiveController(
     device: PadDevice,
     snapshot: PadSnapshot,
     controllerStyle: ControllerStyle,
+    invertFaceGlyphs: Boolean,
     rate: Int,
     onCycle: (PadButton) -> Unit,
     onRate: (Int) -> Unit,
@@ -219,7 +243,7 @@ private fun LiveController(
             Text("Ready", color = Mint,
                 style = MaterialTheme.typography.labelLarge)
         }
-        ControllerBoard(device, snapshot, onCycle, controllerStyle)
+        ControllerBoard(device, snapshot, onCycle, controllerStyle, invertFaceGlyphs)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             ModeLegend("Default", Color(0xFF859C90))
             ModeLegend("Held", Mint)

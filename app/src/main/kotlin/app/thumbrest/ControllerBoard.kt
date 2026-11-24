@@ -73,6 +73,7 @@ internal fun ControllerBoard(
     snapshot: PadSnapshot? = null,
     onCycle: ((PadButton) -> Unit)? = null,
     style: ControllerStyle = ControllerStyle.Xbox,
+    invertFaceGlyphs: Boolean = false,
 ) {
     val handler = rememberUpdatedState(onCycle)
     val activeSession = snapshot?.status == 1
@@ -81,7 +82,7 @@ internal fun ControllerBoard(
     } else {
         PadButton.entries.filter(device::supports)
             .joinToString(separator = ", ", prefix = "${style.label} gamepad modes. ") {
-                "${style.visual(it).description} ${snapshot.mode(it).label}"
+                "${style.visual(faceGlyphButton(it, invertFaceGlyphs)).description} ${snapshot.mode(it).label}"
             }
     }
 
@@ -111,7 +112,8 @@ internal fun ControllerBoard(
             drawCircle(Dark, radius = 54f, center = Offset(405f, 141f))
             for (position in positions) {
                 val button = position.button
-                val visual = style.visual(button)
+                val glyph = faceGlyphButton(button, invertFaceGlyphs)
+                val visual = style.visual(glyph)
                 val supported = device?.supports(button) != false
                 val mode = snapshot?.mode(button) ?: ButtonMode.Default
                 val active = snapshot?.output
@@ -125,7 +127,7 @@ internal fun ControllerBoard(
                 val fill = if (pressed && supported) {
                     if (mode == ButtonMode.Default) Label else color
                 } else Control
-                val label = if (pressed) Dark else if (supported) style.glyphColor(button) else Idle
+                val label = if (pressed) Dark else if (supported) style.glyphColor(glyph) else Idle
                 when (button) {
                     PadButton.L3, PadButton.R3 -> {
                         val axes = if (button == PadButton.L3) {
