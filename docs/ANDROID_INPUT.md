@@ -32,6 +32,17 @@ styles need their own on-device visual check; no device was connected while
 implementing them. Existing automated checks cover compilation, selection and
 native behavior, and lint, rather than screen appearance.
 
+Signed build **0.2.0 (8)** from revision `8b035f8` was then installed on that
+Thor on 2026-11-24 after
+[CI run 45412649395](https://github.com/Broomm/thumbrest/actions/runs/45412649395)
+passed and its certificate, checksum, version, archive, and alignment were
+verified. ADB readback confirmed automatic Ready with zero Held/Turbo masks,
+the hidden original and one replacement on upper display 0, a non-focusable
+companion window on lower display 4, and no current startup errors. AYN's
+mapping PID did not change. Raw observations are under
+`.tool-cache/verification/apk-build-8-*`. These are installation and runtime
+checks; no screen touches or synthetic gameplay presses were generated.
+
 ## Why a virtual pad remains necessary
 
 The generic backend uses evdev plus uinput. EVIOCGRAB directs source input to

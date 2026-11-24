@@ -185,6 +185,11 @@ remained running throughout these checks.
 These packaged checks used ADB lifecycle commands and Android registry readback;
 they did not generate gameplay button presses or automate screen touches.
 The owner subsequently reported this version worked perfectly on 2026-11-24.
-The visual-style update is checked separately through compilation/lint and the
-owner walkthrough; no Android device was connected during its development.
-Enforcing-mode behavior and other Android devices remain unverified.
+The visual-style update passed compilation/lint and signed CI. Build **8** was
+subsequently installed on the same Thor on 2026-11-24: it automatically returned
+to Ready with all buttons Default, the original hidden, upper-display routing
+confirmed, and the lower-screen window non-focusable. App startup logs contained
+no current errors, and AYN's mapping PID stayed unchanged. The new style
+selector and its appearance still need the owner walkthrough; these checks did
+not automate screen touches. Enforcing-mode behavior and other Android devices
+remain unverified.
