@@ -52,6 +52,19 @@ mapping PID did not change. Raw observations are under
 `.tool-cache/verification/apk-build-8-*`. These are installation and runtime
 checks; no screen touches or synthetic gameplay presses were generated.
 
+The glyph-inversion implementation in `caee5c3` passed local Devbox checks and
+[CI run 45416652167](https://github.com/Broomm/thumbrest/actions/runs/45416652167).
+Its signed APK **0.2.0 (9)** has SHA-256
+`646d27348ba2c5a3ed5e98e3d939608b07d132dbb3a335aeedc413683dea7623`.
+Certificate, checksum, version, archive, and alignment checks passed before its
+2026-11-24 installation on the same Thor. The selected PlayStation style was
+preserved, and the inversion preference read false after upgrade. The app
+returned to Ready with zero Held/Turbo masks, one replacement routed to upper
+display 0, the original hidden, a non-focusable lower window, and no current
+startup errors. AYN's mapping PID stayed unchanged. Observations are under
+`.tool-cache/verification/apk-build-9-*`. These runtime checks did not exercise
+the toggle through screen taps; that remains owner verification.
+
 ## Why a virtual pad remains necessary
 
 The generic backend uses evdev plus uinput. EVIOCGRAB directs source input to

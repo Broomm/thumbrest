@@ -201,3 +201,10 @@ no current errors, and AYN's mapping PID stayed unchanged. The new style
 selector and its appearance still need the owner walkthrough; these checks did
 not automate screen touches. Enforcing-mode behavior and other Android devices
 remain unverified.
+
+The glyph-inversion update, signed **build 9** from `caee5c3`, also passed CI
+and was installed on this Thor on 2026-11-24. Startup, controller hiding, upper
+display routing, and the touch-only lower-screen window passed ADB readback.
+The owner's PlayStation style stayed selected and inversion was off after the
+upgrade. The new toggle's appearance and operation through screen taps remain
+part of the owner walkthrough; no touches or gameplay inputs were automated.
