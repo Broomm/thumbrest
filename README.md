@@ -221,3 +221,12 @@ screen taps. Three regression scenarios cover fixed glyph placement and reversed
 physical reports, taps controlling existing Held/Turbo input channels, and
 unsupported/non-face controls. The native passthrough and virtual input engine
 are unchanged.
+
+The corrected signed **build 10** (`26395bb`) passed the new binding regressions,
+existing checks, lint, workflow validation, and CI. Its signature, checksum,
+version, archive, and alignment were verified before installation on the Thor
+on 2026-11-24. Startup and upper-screen routing passed ADB readback. With
+PlayStation style and inversion enabled, the owner confirmed that the physical
+south button highlights the fixed south Cross, glyphs stay in their normal
+positions, and tapping Cross controls that same button. This was owner-performed
+verification; no screen touches or gameplay presses were automated.

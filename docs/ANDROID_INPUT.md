@@ -82,6 +82,27 @@ incorrectly moved glyphs and left physical highlights at the wrong positions.
 It did not satisfy the intended inversion behavior; the binding described above
 replaces it.
 
+The correction in `26395bb` passed local Devbox checks, workflow validation,
+and all checks in
+[CI run 45419244323](https://github.com/Broomm/thumbrest/actions/runs/45419244323),
+including the new production-binding regressions. Signed **0.2.0 (10)** has
+SHA-256 `7297cfc5c37c9c1aa43c375a9d7fec091b1b50c2520082e2afa0b8c6ca2a90c7`;
+certificate, checksum, package/version, archive, and alignment verification
+passed before its 2026-11-24 installation on the Thor. ADB confirmed Ready,
+initial zero Held/Turbo masks, clean startup, original-controller hiding,
+upper-display routing, the non-focusable lower window, and a stable AYN mapping
+PID. The PlayStation style stayed selected, and inversion was enabled during
+owner testing. CLI inspection did not write preferences or change live modes.
+
+**Owner-performed verification:** with PlayStation style and inversion enabled,
+the owner confirmed that pressing the physical south button highlights the
+fixed south Cross without relocating glyphs, and tapping Cross controls that
+same button (reply: “Correct now”). The native passthrough/event-code code is
+unchanged. Local runtime observations and the owner's result are recorded under
+`.tool-cache/verification/apk-build-10-*`. No touches or gameplay presses were
+automated; this confirms the requested Thor workflow, not other controllers or
+Android firmware.
+
 ## Why a virtual pad remains necessary
 
 The generic backend uses evdev plus uinput. EVIOCGRAB directs source input to
