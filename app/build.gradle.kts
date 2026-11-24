@@ -114,3 +114,14 @@ tasks.register<JavaExec>("checkControllerChoice") {
         configurations.named("debugUnitTestRuntimeClasspath"),
     )
 }
+
+// Exercise the same display-state and touch binding used by ControllerBoard.
+tasks.register<JavaExec>("checkControllerMapping") {
+    dependsOn("compileDebugUnitTestKotlin")
+    mainClass.set("app.thumbrest.ControllerMappingTestKt")
+    classpath = files(
+        layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),
+        layout.buildDirectory.dir("tmp/kotlin-classes/debug"),
+        configurations.named("debugUnitTestRuntimeClasspath"),
+    )
+}

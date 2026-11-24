@@ -77,29 +77,34 @@ internal fun ControllerBoard(
 ) {
     val handler = rememberUpdatedState(onCycle)
     val activeSession = snapshot?.status == 1
+    val controls = positions.associate { position ->
+        position.button to style.control(position.button, invertFaceGlyphs, device, snapshot)
+    }
+    val currentControls = rememberUpdatedState(controls)
     val accessibleDescription = if (device == null || snapshot == null) {
         "${style.label} gamepad diagram"
     } else {
-        PadButton.entries.filter(device::supports)
+        controls.values.filter { it.supported }
             .joinToString(separator = ", ", prefix = "${style.label} gamepad modes. ") {
-                "${style.visual(faceGlyphButton(it, invertFaceGlyphs)).description} ${snapshot.mode(it).label}"
+                "${it.visual.description} ${it.mode.label}"
             }
     }
 
     Canvas(
         Modifier.fillMaxWidth().aspectRatio(BoardWidth / BoardHeight)
             .semantics { contentDescription = accessibleDescription }
-            .pointerInput(device?.supported, activeSession) {
+            .pointerInput(device?.supported, activeSession, invertFaceGlyphs) {
                 if (activeSession && device != null) {
                     detectTapGestures { tap ->
                         val point = Offset(tap.x * BoardWidth / size.width, tap.y * BoardHeight / size.height)
-                        val hit = positions.filter { device.supports(it.button) }
+                        val bound = currentControls.value
+                        val hit = positions.filter { bound.getValue(it.button).supported }
                             .filter {
                                 kotlin.math.abs(point.x - it.x) <= it.width / 2f + 5f &&
                                     kotlin.math.abs(point.y - it.y) <= 18f
                             }
                             .minByOrNull { (point - it.center).getDistanceSquared() }
-                        hit?.let { handler.value?.invoke(it.button) }
+                        hit?.let { bound.getValue(it.button).cycle(handler.value) }
                     }
                 }
             },
@@ -112,12 +117,11 @@ internal fun ControllerBoard(
             drawCircle(Dark, radius = 54f, center = Offset(405f, 141f))
             for (position in positions) {
                 val button = position.button
-                val glyph = faceGlyphButton(button, invertFaceGlyphs)
-                val visual = style.visual(glyph)
-                val supported = device?.supports(button) != false
-                val mode = snapshot?.mode(button) ?: ButtonMode.Default
-                val active = snapshot?.output
-                val pressed = (active ?: 0) and button.bit != 0
+                val control = controls.getValue(button)
+                val visual = control.visual
+                val supported = control.supported
+                val mode = control.mode
+                val pressed = control.pressed
                 val color = when (mode) {
                     ButtonMode.Default -> Idle
                     ButtonMode.Held -> Mint
@@ -127,7 +131,7 @@ internal fun ControllerBoard(
                 val fill = if (pressed && supported) {
                     if (mode == ButtonMode.Default) Label else color
                 } else Control
-                val label = if (pressed) Dark else if (supported) style.glyphColor(glyph) else Idle
+                val label = if (pressed) Dark else if (supported) style.glyphColor(button) else Idle
                 when (button) {
                     PadButton.L3, PadButton.R3 -> {
                         val axes = if (button == PadButton.L3) {

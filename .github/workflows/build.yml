@@ -47,6 +47,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: devbox run -- ./gradlew --no-daemon :app:checkControllerChoice
 
+      - name: Check physical-to-diagram mapping
+        if: ${{ !cancelled() }}
+        run: devbox run -- ./gradlew --no-daemon :app:checkControllerMapping
+
       - name: Android lint
         if: ${{ !cancelled() }}
         run: devbox run -- ./gradlew --no-daemon :app:lintDebug

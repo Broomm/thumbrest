@@ -161,13 +161,13 @@ internal fun ThumbrestScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text("Invert face glyphs")
-                            Text("Swap A/B and X/Y, or their PlayStation symbols.",
+                            Text("Swap physical A/B and X/Y for this diagram.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(checked = invertFaceGlyphs, onCheckedChange = null)
                     }
-                    Text("Changes the diagram’s labels and glyphs.",
+                    Text("Game input mapping stays the same.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall)
                 }

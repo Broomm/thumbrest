@@ -40,13 +40,18 @@ Cross/Circle/Square/Triangle glyphs and Share/Options. The styles change only
 presentation. Physical button positions, input mappings, and active Held/Turbo
 modes stay the same. Xbox is the default.
 
-Enable **Invert face glyphs** in the same section to swap **A/B** and **X/Y**
-for controllers with the opposite face-label arrangement. PlayStation swaps
-Cross/Circle and Square/Triangle, including glyph colors. This saved option is
-independent of the style and applies immediately. It changes the labels shown
-on each control, including spoken names; the physical input, tap targets, and
-active Held/Turbo modes stay attached to their original buttons. It is off by
-default, preserving your existing layout until you enable it.
+Enable **Invert face glyphs** in the same section when physical face buttons
+highlight the opposite positions in the diagram. It swaps the **A/B** and
+**X/Y** associations between physical input and diagram controls, while every
+glyph and color stays in its normal location. In PlayStation style, Cross stays
+south, Circle east, Square west, and Triangle north. If your physical south
+button previously highlighted east, enabling inversion makes it highlight
+south; tapping that south control applies Held/Turbo to the same physical
+button. Games receive its original button signal.
+
+The option is remembered, independent of style, and applies immediately. It is
+off by default. Changing it does not transfer existing Held/Turbo modes between
+physical inputs; their highlights follow the corrected diagram association.
 
 The preview handles digital gamepad buttons and common joystick axes from one
 Linux event node. Additional physical keys pass through; analog-only controls
@@ -95,7 +100,7 @@ The SDK bootstrap
 pins platform 36, build tools 36.0.0, NDK 29.0.14206865, CMake 3.22.1, and
 platform-tools 37.0.3. Gradle pins Kotlin, the Compose BOM, and the libsu root
 service library. The test command runs native button-mode checks, pure Kotlin automatic-selection
-regressions, and Android lint.
+and physical-to-diagram mapping regressions, and Android lint.
 
 ## GitHub builds and release signing
 
@@ -208,3 +213,11 @@ display routing, and the touch-only lower-screen window passed ADB readback.
 The owner's PlayStation style stayed selected and inversion was off after the
 upgrade. The new toggle's appearance and operation through screen taps remain
 part of the owner walkthrough; no touches or gameplay inputs were automated.
+
+The owner identified that build 9's inversion moved the glyphs instead of
+correcting physical-to-diagram associations. That behavior is replaced by a
+shared binding for highlights, mode/support state, spoken descriptions, and
+screen taps. Three regression scenarios cover fixed glyph placement and reversed
+physical reports, taps controlling existing Held/Turbo input channels, and
+unsupported/non-face controls. The native passthrough and virtual input engine
+are unchanged.

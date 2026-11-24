@@ -26,14 +26,28 @@ active Held/Turbo modes attached to the same physical button positions. Switch
 letters follow Nintendo's face arrangement (B south, A east, Y west, X north);
 PlayStation shapes are drawn directly so they do not depend on font glyphs.
 
-**Invert face glyphs** is a separate remembered Boolean appearance preference,
-defaulting to false. It resolves A↔B and X↔Y only while choosing each control's
-visual label, vector shape, color, and accessible name. All three styles support
-it; PlayStation swaps Cross/Circle and Square/Triangle. Hit testing, supported
-buttons, pressed state, mode masks, and outgoing cycle commands keep using the
-original button identity. Switching either appearance option requires no root
-command or controller restart and does not transfer an active mode to another
-physical button.
+**Invert face glyphs** is a separate remembered Boolean diagram-association
+preference, defaulting to false. Every style keeps its glyphs, colors, and names
+at the normal diagram positions. Inversion associates each fixed position with
+the opposite A↔B or X↔Y original input channel. The same resolved binding supplies
+pressed state, mode, support, accessible description, and the input channel used
+when tapping that position. In PlayStation style, a physical south button
+reported as B lights the fixed south Cross, and tapping Cross controls that
+original B channel. The native snapshot, physical passthrough, and outgoing
+virtual-controller event codes are never remapped.
+
+Changing the preference does not modify the engine's existing Held/Turbo masks;
+their diagram indicators follow the selected association. Shoulders, sticks,
+menus, D-pad, and their touch bindings stay unchanged. No root command or
+controller restart is sent when changing either appearance preference. The
+existing preference key is preserved when upgrading from the incorrect glyph-
+swapping implementation.
+
+`ControllerControl` is the shared production binding for drawing and screen
+commands. Three pure Kotlin regression scenarios exercise the reported south-
+to-east mismatch with fixed glyphs across all styles, taps controlling the same
+Held/Turbo channels they display, and support/non-face boundaries. Both
+`devbox run check` and an independent CI step run these checks.
 
 On 2026-11-24 the owner reported that signed build 0.2.0 (7) worked perfectly.
 That is owner-reported acceptance of the prior Thor workflow. The new visual
@@ -63,7 +77,10 @@ returned to Ready with zero Held/Turbo masks, one replacement routed to upper
 display 0, the original hidden, a non-focusable lower window, and no current
 startup errors. AYN's mapping PID stayed unchanged. Observations are under
 `.tool-cache/verification/apk-build-9-*`. These runtime checks did not exercise
-the toggle through screen taps; that remains owner verification.
+the toggle through screen taps. The owner subsequently reported that this build
+incorrectly moved glyphs and left physical highlights at the wrong positions.
+It did not satisfy the intended inversion behavior; the binding described above
+replaces it.
 
 ## Why a virtual pad remains necessary
 

@@ -8,17 +8,6 @@ internal data class ButtonVisual(
     val shape: ButtonShape? = null,
 )
 
-// Resolve the glyph source only; input identity and button modes keep using
-// the original PadButton at the control's position.
-internal fun faceGlyphButton(button: PadButton, inverted: Boolean): PadButton =
-    if (!inverted) button else when (button) {
-        PadButton.A -> PadButton.B
-        PadButton.B -> PadButton.A
-        PadButton.X -> PadButton.Y
-        PadButton.Y -> PadButton.X
-        else -> button
-    }
-
 // Presentation only: every style renders the same PadButton identities.
 internal enum class ControllerStyle(val preferenceId: String, val label: String) {
     Xbox("xbox", "Xbox"),
