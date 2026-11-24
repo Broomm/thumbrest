@@ -15,6 +15,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -71,15 +72,16 @@ internal fun ControllerBoard(
     device: PadDevice? = null,
     snapshot: PadSnapshot? = null,
     onCycle: ((PadButton) -> Unit)? = null,
+    style: ControllerStyle = ControllerStyle.Xbox,
 ) {
     val handler = rememberUpdatedState(onCycle)
     val activeSession = snapshot?.status == 1
     val accessibleDescription = if (device == null || snapshot == null) {
-        "Gamepad diagram"
+        "${style.label} gamepad diagram"
     } else {
         PadButton.entries.filter(device::supports)
-            .joinToString(separator = ", ", prefix = "Gamepad modes. ") {
-                "${it.description} ${snapshot.mode(it).label}"
+            .joinToString(separator = ", ", prefix = "${style.label} gamepad modes. ") {
+                "${style.visual(it).description} ${snapshot.mode(it).label}"
             }
     }
 
@@ -109,6 +111,7 @@ internal fun ControllerBoard(
             drawCircle(Dark, radius = 54f, center = Offset(405f, 141f))
             for (position in positions) {
                 val button = position.button
+                val visual = style.visual(button)
                 val supported = device?.supports(button) != false
                 val mode = snapshot?.mode(button) ?: ButtonMode.Default
                 val active = snapshot?.output
@@ -122,7 +125,7 @@ internal fun ControllerBoard(
                 val fill = if (pressed && supported) {
                     if (mode == ButtonMode.Default) Label else color
                 } else Control
-                val label = if (pressed) Dark else if (supported) Label else Idle
+                val label = if (pressed) Dark else if (supported) style.glyphColor(button) else Idle
                 when (button) {
                     PadButton.L3, PadButton.R3 -> {
                         val axes = if (button == PadButton.L3) {
@@ -135,7 +138,7 @@ internal fun ControllerBoard(
                         val cap = position.center + axes * .010f
                         drawCircle(fill, radius = 20f, center = cap)
                         drawCircle(edge, radius = 20f, center = cap, style = Stroke(2f))
-                        buttonLabel(button.label, cap, label, 13f)
+                        buttonGlyph(visual, cap, label, 13f)
                     }
                     PadButton.L1, PadButton.R1, PadButton.L2, PadButton.R2, PadButton.Select, PadButton.Start -> {
                         val height = if (position.width > 70f) 28f else 23f
@@ -143,15 +146,71 @@ internal fun ControllerBoard(
                         val size = Size(position.width, height)
                         drawRoundRect(fill, topLeft, size, CornerRadius(10f))
                         drawRoundRect(edge, topLeft, size, CornerRadius(10f), style = Stroke(1.7f))
-                        buttonLabel(button.label, position.center, label, 14f)
+                        buttonGlyph(visual, position.center, label, 14f)
                     }
                     else -> {
                         drawCircle(fill, radius = 16f, center = position.center)
                         drawCircle(edge, radius = 16f, center = position.center, style = Stroke(1.7f))
-                        buttonLabel(button.label, position.center, label, 16f)
+                        buttonGlyph(visual, position.center, label, 16f)
                     }
                 }
             }
+        }
+    }
+}
+
+private fun ControllerStyle.glyphColor(button: PadButton): Color = when (this) {
+    ControllerStyle.Xbox -> when (button) {
+        PadButton.A -> Color(0xFF80D778)
+        PadButton.B -> Color(0xFFF08080)
+        PadButton.X -> Color(0xFF7EB5FF)
+        PadButton.Y -> Color(0xFFF2D36C)
+        else -> Label
+    }
+    ControllerStyle.PlayStation -> when (button) {
+        PadButton.A -> Color(0xFF8DB8FF)
+        PadButton.B -> Color(0xFFF09090)
+        PadButton.X -> Color(0xFFF1A5D1)
+        PadButton.Y -> Color(0xFF8EDCC6)
+        else -> Label
+    }
+    ControllerStyle.Switch -> Label
+}
+
+private fun DrawScope.buttonGlyph(visual: ButtonVisual, center: Offset, color: Color, fontSize: Float) {
+    val half = fontSize * .38f
+    val stroke = Stroke(1.8f, cap = StrokeCap.Round)
+    when (visual.shape) {
+        null -> buttonLabel(visual.label, center, color, fontSize)
+        ButtonShape.Circle -> drawCircle(color, half, center, style = stroke)
+        ButtonShape.Square -> drawRoundRect(color, center - Offset(half, half),
+            Size(half * 2f, half * 2f), CornerRadius(1f), style = stroke)
+        ButtonShape.Cross -> {
+            drawLine(color, center - Offset(half, half), center + Offset(half, half),
+                strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(color, center + Offset(-half, half), center + Offset(half, -half),
+                strokeWidth = stroke.width, cap = StrokeCap.Round)
+        }
+        ButtonShape.Triangle -> {
+            val triangle = Path().apply {
+                moveTo(center.x, center.y - half - 1f)
+                lineTo(center.x + half + 1f, center.y + half)
+                lineTo(center.x - half - 1f, center.y + half)
+                close()
+            }
+            drawPath(triangle, color, style = stroke)
+        }
+        ButtonShape.Home -> {
+            val home = Path().apply {
+                moveTo(center.x - half - 1f, center.y - 1f)
+                lineTo(center.x, center.y - half)
+                lineTo(center.x + half + 1f, center.y - 1f)
+                moveTo(center.x - half + 1f, center.y - 2f)
+                lineTo(center.x - half + 1f, center.y + half)
+                lineTo(center.x + half - 1f, center.y + half)
+                lineTo(center.x + half - 1f, center.y - 2f)
+            }
+            drawPath(home, color, style = stroke)
         }
     }
 }

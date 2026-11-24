@@ -15,6 +15,23 @@ Starting a session additionally verifies the scanned event node's device,
 inode, and character-device number. Ambiguous remembered hardware requires
 an explicit selection.
 
+## Visual controller styles
+
+The companion offers a remembered Xbox, Switch, or PlayStation button style,
+with Xbox as the default. Style preferences belong to the activity's appearance
+storage, separate from SessionService and the native/root protocol. Switching
+styles changes labels, glyph colors, vector face-button shapes, and spoken
+button names. It sends no controller command, reconnects no device, and leaves
+active Held/Turbo modes attached to the same physical button positions. Switch
+letters follow Nintendo's face arrangement (B south, A east, Y west, X north);
+PlayStation shapes are drawn directly so they do not depend on font glyphs.
+
+On 2026-11-24 the owner reported that signed build 0.2.0 (7) worked perfectly.
+That is owner-reported acceptance of the prior Thor workflow. The new visual
+styles need their own on-device visual check; no device was connected while
+implementing them. Existing automated checks cover compilation, selection and
+native behavior, and lint, rather than screen appearance.
+
 ## Why a virtual pad remains necessary
 
 The generic backend uses evdev plus uinput. EVIOCGRAB directs source input to

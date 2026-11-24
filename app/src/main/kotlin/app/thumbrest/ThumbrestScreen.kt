@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -69,6 +71,8 @@ internal fun ThumbrestTheme(content: @Composable () -> Unit) {
 @Composable
 internal fun ThumbrestScreen(
     state: SessionState,
+    controllerStyle: ControllerStyle,
+    onStyleChange: (ControllerStyle) -> Unit,
     onConnect: () -> Unit,
     onSelect: (PadDevice) -> Unit,
     onCycle: (PadButton) -> Unit,
@@ -113,12 +117,12 @@ internal fun ThumbrestScreen(
                     state.stopping -> Pending("Releasing controller…")
                     state.starting -> Pending("Opening controller…")
                     pad != null && snapshot != null -> LiveController(
-                        pad, snapshot, state.rate, onCycle, onRate, onClear,
+                        pad, snapshot, controllerStyle, state.rate, onCycle, onRate, onClear,
                     )
                     state.connecting -> Pending("Waiting for Magisk…")
                     state.connected -> DevicePicker(state.devices, state.scanning, state.scanError != null, onSelect)
                     else -> CardPanel {
-                        ControllerBoard()
+                        ControllerBoard(style = controllerStyle)
                         Text("Hold buttons down or fire repeatedly without keeping your thumb on the controller.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
@@ -127,6 +131,22 @@ internal fun ThumbrestScreen(
                         Text("Requires Magisk root", style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
+
+                CardPanel {
+                    Text("Button style", style = MaterialTheme.typography.titleMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ControllerStyle.entries.forEach { style ->
+                            FilterChip(
+                                selected = style == controllerStyle,
+                                onClick = { onStyleChange(style) },
+                                label = { Text(style.label) },
+                            )
+                        }
+                    }
+                    Text("Changes the diagram’s labels and glyphs.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -185,6 +205,7 @@ private fun DevicePicker(
 private fun LiveController(
     device: PadDevice,
     snapshot: PadSnapshot,
+    controllerStyle: ControllerStyle,
     rate: Int,
     onCycle: (PadButton) -> Unit,
     onRate: (Int) -> Unit,
@@ -198,7 +219,7 @@ private fun LiveController(
             Text("Ready", color = Mint,
                 style = MaterialTheme.typography.labelLarge)
         }
-        ControllerBoard(device, snapshot, onCycle)
+        ControllerBoard(device, snapshot, onCycle, controllerStyle)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             ModeLegend("Default", Color(0xFF859C90))
             ModeLegend("Held", Mint)

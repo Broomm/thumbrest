@@ -32,6 +32,14 @@ publishes **Thumbrest Virtual Gamepad** for emulators and games.
    Disconnecting a pad ends its input session; reconnecting the remembered pad
    starts a fresh Default session automatically.
 
+Under **Button style**, choose **Xbox**, **Switch**, or **PlayStation**.
+The choice is remembered and takes effect immediately, including during a live
+session. Xbox uses its colored ABXY labels and LB/RB/LT/RT; Switch uses B at the
+bottom, A on the right, L/R/ZL/ZR and minus/plus; PlayStation uses colored
+Cross/Circle/Square/Triangle glyphs and Share/Options. The styles change only
+presentation. Physical button positions, input mappings, and active Held/Turbo
+modes stay the same. Xbox is the default.
+
 The preview handles digital gamepad buttons and common joystick axes from one
 Linux event node. Additional physical keys pass through; analog-only controls
 remain axes. Rumble forwarding is not implemented. Button modes last for the
@@ -51,8 +59,8 @@ Held/Turbo, and continued game focus when touching the lower screen. Verify
 Stop and force-stop return direct physical input. The secondary-display window
 accepts touch without requesting controller key focus. Its virtual pad is
 associated with the upper/default display so a lower-screen touch cannot
-redirect its events. Actual Thor/Burnout focus and gameplay behavior need this
-hands-on check.
+redirect its events. The owner confirmed the Thor workflow worked on
+2026-11-24; the new button styles still need a visual check on the device.
 
 ## Build with Devbox
 
@@ -176,5 +184,7 @@ remained running throughout these checks.
 
 These packaged checks used ADB lifecycle commands and Android registry readback;
 they did not generate gameplay button presses or automate screen touches.
-The screen-tap sequence and emulator gameplay still need the owner walkthrough
-above. Enforcing-mode behavior and other Android devices remain unverified.
+The owner subsequently reported this version worked perfectly on 2026-11-24.
+The visual-style update is checked separately through compilation/lint and the
+owner walkthrough; no Android device was connected during its development.
+Enforcing-mode behavior and other Android devices remain unverified.

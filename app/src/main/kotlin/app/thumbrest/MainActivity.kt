@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class MainActivity : ComponentActivity() {
     private var session: SessionService? = null
     private val screenState = MutableStateFlow(SessionState())
+    private val controllerStyle = MutableStateFlow(ControllerStyle.Xbox)
     private var stateSubscription: Job? = null
     private var bound = false
     private var windowUpdateQueued = false
@@ -69,6 +70,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        controllerStyle.value = ControllerStyle.fromPreference(
+            getSharedPreferences("appearance", MODE_PRIVATE).getString("controllerStyle", null),
+        )
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -79,12 +83,15 @@ class MainActivity : ComponentActivity() {
         guardAgainstVirtualInput()
         setContent {
             val state by screenState.collectAsState()
+            val style by controllerStyle.collectAsState()
             LaunchedEffect(state.snapshot?.status, state.snapshot?.held, state.snapshot?.turbo) {
                 Log.i("ThumbrestUI", "Status=${state.snapshot?.status} held=${state.snapshot?.held} turbo=${state.snapshot?.turbo}")
             }
             ThumbrestTheme {
                 ThumbrestScreen(
                     state = state,
+                    controllerStyle = style,
+                    onStyleChange = ::setControllerStyle,
                     onConnect = ::requestConnection,
                     onSelect = { session?.select(it) },
                     onCycle = { session?.cycle(it) },
@@ -155,6 +162,14 @@ class MainActivity : ComponentActivity() {
             override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
                 event.device?.name == PadProtocol.VIRTUAL_NAME || original.dispatchGenericMotionEvent(event)
         }
+    }
+
+    private fun setControllerStyle(style: ControllerStyle) {
+        if (controllerStyle.value == style) return
+        getSharedPreferences("appearance", MODE_PRIVATE).edit {
+            putString("controllerStyle", style.preferenceId)
+        }
+        controllerStyle.value = style
     }
 
     private fun requestConnection() {
